@@ -6,17 +6,22 @@
          current-max-width
          current-indent
 
-         ;; primitives
+         ;; constructs
          text
-         choice
          flush
-         h-append
 
-         ;; derivatives
+         alt
+
+         h-append
          hs-append
          v-append
-         v-concat
+
+         h-concat
          hs-concat
+         v-concat
+
+         empty-doc
+
          sep)
 
 (module+ test
@@ -28,9 +33,9 @@
          racket/string)
 
 (struct text (s) #:transparent)
-(struct choice (a b) #:transparent)
+(struct alternatives (a b) #:transparent)
 (struct flush (d) #:transparent)
-(struct h-append (a b) #:transparent)
+(struct concat (a b) #:transparent)
 
 (struct measure (width last-width height r) #:transparent)
 
@@ -88,7 +93,7 @@
                    (add1 height)
                    (λ (indent xs)
                      (r indent (list* "\n" (make-string indent #\space) xs)))))]
-       [(h-append a b)
+       [(concat a b)
         (define candidates
           (for*/list ([m-a (in-list (render* a))] [m-b (in-list (render* b))])
             (match-define (measure width-a last-width-a height-a r-a) m-a)
@@ -105,7 +110,7 @@
           [candidates
            (pareto candidates
                    (list measure-width measure-last-width measure-height))])]
-       [(choice a b) (append (render* a) (render* b))]))))
+       [(alternatives a b) (append (render* a) (render* b))]))))
 
 (define (find-optimal-layout d)
   (define candidates (render* d))
@@ -115,6 +120,14 @@
 (define (render d)
   (string-append* ((measure-r (find-optimal-layout d)) (current-indent) '())))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Derivative constructs
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (alt x . xs)
+  (for/fold ([current x]) ([x (in-list xs)])
+    (alternatives current x)))
+
 (define empty-doc (text ""))
 
 (define (fold-doc f xs)
@@ -123,30 +136,42 @@
     [(list x) x]
     [(cons x xs) (f x (fold-doc f xs))]))
 
-(define (hs-append x y)
-  (h-append x (h-append (text " ") y)))
+(define (h-concat xs)
+  (fold-doc concat xs))
 
-(define (v-append x y)
+(define (h-append . xs)
+  (h-concat xs))
+
+(define (hs-append/bin x y)
+  (h-append x (text " ") y))
+
+(define (v-append/bin x y)
   (h-append (flush x) y))
 
 (define (v-concat xs)
-  (fold-doc v-append xs))
+  (fold-doc v-append/bin xs))
 
 (define (hs-concat xs)
-  (fold-doc hs-append xs))
+  (fold-doc hs-append/bin xs))
+
+(define (hs-append . xs)
+  (hs-concat xs))
+
+(define (v-append . xs)
+  (v-concat xs))
 
 (define (sep xs)
   (match xs
     ['() empty-doc]
-    [xs (choice (hs-concat xs) (v-concat xs))]))
+    [xs (alt (hs-concat xs) (v-concat xs))]))
 
 (module+ test
   (define (pretty d)
     (match d
       [(list xs ...)
        (h-append (text "(")
-                 (h-append (sep (map pretty xs))
-                           (text ")")))]
+                 (sep (map pretty xs))
+                 (text ")"))]
       [_ (text d)]))
 
   (define abcd '("a" "b" "c" "d"))
