@@ -2,6 +2,8 @@
 
 (provide render
 
+         (struct-out measure)
+
          ;; parameters
          current-max-width
          current-indent
@@ -9,6 +11,7 @@
          ;; constructs
          text
          flush
+         select
 
          alt
 
@@ -24,18 +27,19 @@
 
          sep)
 
-(module+ test
-  (require rackunit
-           racket/set))
-
 (require racket/match
          racket/list
          racket/string)
+
+(module+ test
+  (require rackunit
+           racket/set))
 
 (struct text (s) #:transparent)
 (struct alternatives (a b) #:transparent)
 (struct flush (d) #:transparent)
 (struct concat (a b) #:transparent)
+(struct select (d p) #:transparent)
 
 (struct measure (width last-width height r) #:transparent)
 
@@ -50,7 +54,7 @@
 (define (valid? candidate)
   (<= (measure-width candidate) (current-max-width)))
 
-;; x is dominated by y?
+;; is x dominated by y?
 (define ((dominated? objectives) x y)
   (andmap (λ (objective) (>= (objective x) (objective y))) objectives))
 
@@ -71,49 +75,62 @@
                                    (list first second third)))
                 (set (list 1 5 6)
                      (list 1 6 5)
-                     (list 2 4 7))))
+                     (list 2 4 7)))
+
+  (check-equal? (length (pareto (list (list 1 5 6)
+                                      (list 1 5 7)
+                                      (list 1 6 5)
+                                      (list 1 6 5)
+                                      (list 2 4 7))
+                                (list first second third)))
+                3))
 
 (define (memoize f)
   (define table (make-hash))
   (λ args (hash-ref! table args (λ () (apply f args)))))
 
-;; invariant: 0 <= last-width <= width
-(define render*
-  (memoize
-   (λ (d)
-     (match d
-       [(text s)
-        (define len (string-length s))
-        (list (measure len len 0 (λ (indent xs) (cons s xs))))]
-       [(flush d)
-        (for/list ([m (in-list (render* d))])
-          (match-define (measure width _ height r) m)
-          (measure width
-                   0
-                   (add1 height)
-                   (λ (indent xs)
-                     (r indent (list* "\n" (make-string indent #\space) xs)))))]
-       [(concat a b)
-        (define candidates
-          (for*/list ([m-a (in-list (render* a))] [m-b (in-list (render* b))])
-            (match-define (measure width-a last-width-a height-a r-a) m-a)
-            (match-define (measure width-b last-width-b height-b r-b) m-b)
-            (measure (max width-a (+ last-width-a width-b))
-                     (+ last-width-a last-width-b)
-                     (+ height-a height-b)
-                     (λ (indent xs)
-                       (r-a indent (r-b (+ indent last-width-a) xs))))))
-        (match (filter valid? candidates)
-          ['() (list (for/fold ([best-candidate (first candidates)])
-                               ([current (in-list (rest candidates))])
-                       (min-by best-candidate current #:key measure-width)))]
-          [candidates
-           (pareto candidates
-                   (list measure-width measure-last-width measure-height))])]
-       [(alternatives a b) (append (render* a) (render* b))]))))
+(define (manage-candidates candidates)
+  (match (filter valid? candidates)
+    ['() (list (for/fold ([best-candidate (first candidates)])
+                         ([current (in-list (rest candidates))])
+                 (min-by best-candidate current #:key measure-width)))]
+    [candidates
+     (pareto candidates
+             (list measure-width measure-last-width measure-height))]))
+
+(define (make-render)
+  (define render
+    (memoize
+     (λ (d)
+       (match d
+         [(text s)
+          (define len (string-length s))
+          (list (measure len len 0 (λ (indent xs) (cons s xs))))]
+         [(flush d)
+          (for/list ([m (in-list (render d))])
+            (match-define (measure width _ height r) m)
+            (measure
+             width
+             0
+             (add1 height)
+             (λ (indent xs)
+               (r indent (list* "\n" (make-string indent #\space) xs)))))]
+         [(concat a b)
+          (manage-candidates
+           (for*/list ([m-a (in-list (render a))] [m-b (in-list (render b))])
+             (match-define (measure width-a last-width-a height-a r-a) m-a)
+             (match-define (measure width-b last-width-b height-b r-b) m-b)
+             (measure (max width-a (+ last-width-a width-b))
+                      (+ last-width-a last-width-b)
+                      (+ height-a height-b)
+                      (λ (indent xs)
+                        (r-a indent (r-b (+ indent last-width-a) xs))))))]
+         [(alternatives a b) (manage-candidates (append (render a) (render b)))]
+         [(select d p) (filter p (render d))]))))
+  render)
 
 (define (find-optimal-layout d)
-  (define candidates (render* d))
+  (define candidates ((make-render) d))
   (for/fold ([best (first candidates)]) ([current (rest candidates)])
     (min-by best current #:key measure-height)))
 
@@ -168,11 +185,45 @@
 (module+ test
   (define (pretty d)
     (match d
-      [(list xs ...)
-       (h-append (text "(")
-                 (sep (map pretty xs))
-                 (text ")"))]
+      [(list) (text "()")]
+      [(list f args ...)
+       (define fp (pretty f))
+       (define argsp (map pretty args))
+       (alt (h-append (text "(")
+                      (sep (cons fp argsp))
+                      (text ")"))
+            (h-append (text "(")
+                      fp
+                      (text " ")
+                      (v-concat argsp)
+                      (text ")")))]
       [_ (text d)]))
+
+  (check-equal?
+   (parameterize ([current-max-width 15])
+     (render (pretty '("+" "123" "456" "789"))))
+   "(+ 123 456 789)")
+
+  (check-equal?
+   (parameterize ([current-max-width 14])
+     (render (pretty '("+" "123" "456" "789"))))
+   #<<EOF
+(+ 123
+   456
+   789)
+EOF
+   )
+
+  (check-equal?
+   (parameterize ([current-max-width 5])
+     (render (pretty '("+" "123" "456" "789"))))
+   #<<EOF
+(+
+ 123
+ 456
+ 789)
+EOF
+   )
 
   (define abcd '("a" "b" "c" "d"))
   (define abcd4 (list abcd abcd abcd abcd))
