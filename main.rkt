@@ -204,6 +204,44 @@
                       (text ")")))]
       [_ (text d)]))
 
+  (define (pretty* d)
+    (match d
+      [(list) (text "()")]
+      [(list f args ...)
+       (define fp (pretty* f))
+       (define argsp (map pretty* args))
+       (alt (h-append (text "(")
+                      (v-concat (cons fp argsp))
+                      (text ")"))
+            (h-append (text "(")
+                      (hs-concat (cons fp argsp))
+                      (text ")"))
+            (h-append (text "(")
+                      fp
+                      (text " ")
+                      (v-concat argsp)
+                      (text ")")))]
+      [_ (text d)]))
+
+  (check-equal?
+   (parameterize ([current-max-width 31])
+     (render (pretty '("+" ("foo" "1" "2") ("bar" "2" "3") ("baz" "3" "4")))))
+   #<<EOF
+(+ (foo 1 2)
+   (bar 2 3)
+   (baz 3 4))
+EOF
+   )
+
+  (check-equal?
+   (parameterize ([current-max-width 31])
+     (render (pretty* '("+" ("foo" "1" "2") ("bar" "2" "3") ("baz" "3" "4")))))
+   #<<EOF
+(+ (foo 1
+        2) (bar 2 3) (baz 3 4))
+EOF
+   )
+
   (check-equal?
    (parameterize ([current-max-width 15])
      (render (pretty '("+" "123" "456" "789"))))
@@ -233,24 +271,13 @@ EOF
   (define abcd '("a" "b" "c" "d"))
   (define abcd4 (list abcd abcd abcd abcd))
 
-  (define prettied
-    (pretty (list (list "abcde" abcd4)
-                  (list "abcdefgh" abcd4))))
-
-  (define rendered
-    (parameterize ([current-max-width 20])
-      (find-optimal-layout prettied)))
-
-  (check-equal? (measure-width rendered) 20)
-  (check-equal? (measure-last-width rendered) 15)
-  (check-equal? (measure-height rendered) 8)
-
   (define p (open-output-string))
   (define prefix "hello: ")
   (display prefix p)
   (display (parameterize ([current-max-width 20]
                           [current-indent (string-length prefix)])
-             (render prettied))
+             (render (pretty (list (list "abcde" abcd4)
+                                   (list "abcdefgh" abcd4)))))
            p)
   (check-equal? (get-output-string p)
                 #<<EOF
