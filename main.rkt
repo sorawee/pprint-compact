@@ -2,6 +2,10 @@
 
 (provide render
 
+         ;; parameters
+         current-max-width
+         current-indent
+
          ;; primitives
          text
          choice
@@ -20,16 +24,18 @@
            racket/set))
 
 (require racket/match
-         racket/list)
+         racket/list
+         racket/string)
 
 (struct text (s) #:transparent)
 (struct choice (a b) #:transparent)
 (struct flush (d) #:transparent)
 (struct h-append (a b) #:transparent)
 
-(struct measure (width last-width height d) #:transparent)
+(struct measure (width last-width height r) #:transparent)
 
 (define current-max-width (make-parameter 80))
+(define current-indent (make-parameter 0))
 
 (define (min-by x y #:key [key values])
   (cond
@@ -45,8 +51,7 @@
 
 (define (pareto xs objectives)
   (define domed? (dominated? objectives))
-  (for/fold ([frontier '()])
-            ([current (in-list xs)])
+  (for/fold ([frontier '()]) ([current (in-list xs)])
     (cond
       [(ormap (λ (front) (domed? current front)) frontier) frontier]
       [else
@@ -63,25 +68,30 @@
                      (list 1 6 5)
                      (list 2 4 7))))
 
+
 ;; invariant: 0 <= last-width <= width
 (define (render* d)
   (match d
     [(text s)
      (define len (string-length s))
-     (list (measure len len 0 d))]
+     (list (measure len len 0 (λ (indent xs) (cons s xs))))]
     [(flush d)
      (for/list ([m (in-list (render* d))])
-       (match-define (measure width _ height d) m)
-       (measure width 0 (add1 height) (flush d)))]
+       (match-define (measure width _ height r) m)
+       (measure width
+                0
+                (add1 height)
+                (λ (indent xs)
+                  (r indent (list* "\n" (make-string indent #\space) xs)))))]
     [(h-append a b)
      (define candidates
        (for*/list ([m-a (in-list (render* a))] [m-b (in-list (render* b))])
-         (match-define (measure width-a last-width-a height-a d-a) m-a)
-         (match-define (measure width-b last-width-b height-b d-b) m-b)
+         (match-define (measure width-a last-width-a height-a r-a) m-a)
+         (match-define (measure width-b last-width-b height-b r-b) m-b)
          (measure (max width-a (+ last-width-a width-b))
                   (+ last-width-a last-width-b)
                   (+ height-a height-b)
-                  (h-append d-a d-b))))
+                  (λ (indent xs) (r-a indent (r-b (+ indent last-width-a) xs))))))
      (match (filter valid? candidates)
        ['() (list (for/fold ([best-candidate (first candidates)])
                             ([current (in-list (rest candidates))])
@@ -91,10 +101,13 @@
                 (list measure-width measure-last-width measure-height))])]
     [(choice a b) (append (render* a) (render* b))]))
 
-(define (render d)
+(define (find-optimal-layout d)
   (define candidates (render* d))
   (for/fold ([best (first candidates)]) ([current (rest candidates)])
     (min-by best current #:key measure-height)))
+
+(define (render d)
+  (string-append* ((measure-r (find-optimal-layout d)) (current-indent) '())))
 
 (define empty-doc (text ""))
 
@@ -133,11 +146,35 @@
   (define abcd '("a" "b" "c" "d"))
   (define abcd4 (list abcd abcd abcd abcd))
 
+  (define prettied
+    (pretty (list (list "abcde" abcd4)
+                  (list "abcdefgh" abcd4))))
+
   (define rendered
     (parameterize ([current-max-width 20])
-      (render* (pretty (list (list "abcde" abcd4)
-                             (list "abcdefgh" abcd4))))))
+      (find-optimal-layout prettied)))
 
   (check-equal? (measure-width rendered) 20)
   (check-equal? (measure-last-width rendered) 15)
-  (check-equal? (measure-height rendered) 8))
+  (check-equal? (measure-height rendered) 8)
+
+  (define p (open-output-string))
+  (define prefix "hello: ")
+  (display prefix p)
+  (display (parameterize ([current-max-width 20]
+                          [current-indent (string-length prefix)])
+             (render prettied))
+           p)
+  (check-equal? (get-output-string p)
+                #<<EOF
+hello: ((abcde ((a b c d)
+                (a b c d)
+                (a b c d)
+                (a b c d)))
+        (abcdefgh
+         ((a b c d)
+          (a b c d)
+          (a b c d)
+          (a b c d))))
+EOF
+                ))
