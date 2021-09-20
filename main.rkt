@@ -190,8 +190,13 @@
        (define fp (pretty f))
        (define argsp (map pretty args))
        (alt (h-append (text "(")
-                      (sep (cons fp argsp))
+                      (v-concat (cons fp argsp))
                       (text ")"))
+            (select
+             (h-append (text "(")
+                       (hs-concat (cons fp argsp))
+                       (text ")"))
+             (λ (m) (zero? (measure-height m))))
             (h-append (text "(")
                       fp
                       (text " ")
