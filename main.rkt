@@ -148,11 +148,11 @@
 (define (v-append/bin x y)
   (h-append (flush x) y))
 
-(define (v-concat xs)
-  (fold-doc v-append/bin xs))
-
 (define (hs-concat xs)
   (fold-doc hs-append/bin xs))
+
+(define (v-concat xs)
+  (fold-doc v-append/bin xs))
 
 (define (hs-append . xs)
   (hs-concat xs))
