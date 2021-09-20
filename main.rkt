@@ -68,38 +68,44 @@
                      (list 1 6 5)
                      (list 2 4 7))))
 
+(define (memoize f)
+  (define table (make-hash))
+  (λ args (hash-ref! table args (λ () (apply f args)))))
 
 ;; invariant: 0 <= last-width <= width
-(define (render* d)
-  (match d
-    [(text s)
-     (define len (string-length s))
-     (list (measure len len 0 (λ (indent xs) (cons s xs))))]
-    [(flush d)
-     (for/list ([m (in-list (render* d))])
-       (match-define (measure width _ height r) m)
-       (measure width
-                0
-                (add1 height)
-                (λ (indent xs)
-                  (r indent (list* "\n" (make-string indent #\space) xs)))))]
-    [(h-append a b)
-     (define candidates
-       (for*/list ([m-a (in-list (render* a))] [m-b (in-list (render* b))])
-         (match-define (measure width-a last-width-a height-a r-a) m-a)
-         (match-define (measure width-b last-width-b height-b r-b) m-b)
-         (measure (max width-a (+ last-width-a width-b))
-                  (+ last-width-a last-width-b)
-                  (+ height-a height-b)
-                  (λ (indent xs) (r-a indent (r-b (+ indent last-width-a) xs))))))
-     (match (filter valid? candidates)
-       ['() (list (for/fold ([best-candidate (first candidates)])
-                            ([current (in-list (rest candidates))])
-                    (min-by best-candidate current #:key measure-width)))]
-       [candidates
-        (pareto candidates
-                (list measure-width measure-last-width measure-height))])]
-    [(choice a b) (append (render* a) (render* b))]))
+(define render*
+  (memoize
+   (λ (d)
+     (match d
+       [(text s)
+        (define len (string-length s))
+        (list (measure len len 0 (λ (indent xs) (cons s xs))))]
+       [(flush d)
+        (for/list ([m (in-list (render* d))])
+          (match-define (measure width _ height r) m)
+          (measure width
+                   0
+                   (add1 height)
+                   (λ (indent xs)
+                     (r indent (list* "\n" (make-string indent #\space) xs)))))]
+       [(h-append a b)
+        (define candidates
+          (for*/list ([m-a (in-list (render* a))] [m-b (in-list (render* b))])
+            (match-define (measure width-a last-width-a height-a r-a) m-a)
+            (match-define (measure width-b last-width-b height-b r-b) m-b)
+            (measure (max width-a (+ last-width-a width-b))
+                     (+ last-width-a last-width-b)
+                     (+ height-a height-b)
+                     (λ (indent xs)
+                       (r-a indent (r-b (+ indent last-width-a) xs))))))
+        (match (filter valid? candidates)
+          ['() (list (for/fold ([best-candidate (first candidates)])
+                               ([current (in-list (rest candidates))])
+                       (min-by best-candidate current #:key measure-width)))]
+          [candidates
+           (pareto candidates
+                   (list measure-width measure-last-width measure-height))])]
+       [(choice a b) (append (render* a) (render* b))]))))
 
 (define (find-optimal-layout d)
   (define candidates (render* d))
