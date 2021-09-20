@@ -150,8 +150,8 @@
 (define (fold-doc f xs)
   (match xs
     ['() empty-doc]
-    [(list x) x]
-    [(cons x xs) (f x (fold-doc f xs))]))
+    [_ (for/fold ([current (first xs)]) ([x (in-list (rest xs))])
+         (f current x))]))
 
 (define (h-concat xs)
   (fold-doc concat xs))
