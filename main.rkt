@@ -39,17 +39,17 @@
       [(list f args ...)
        (define fp (pretty* f))
        (define argsp (map pretty* args))
-       (alt (h-append (text "(")
+       (alt (h-append lparen
                       (v-concat (cons fp argsp))
-                      (text ")"))
-            (h-append (text "(")
+                      rparen)
+            (h-append lparen
                       (hs-concat (cons fp argsp))
-                      (text ")"))
-            (h-append (text "(")
+                      rparen)
+            (h-append lparen
                       fp
-                      (text " ")
+                      space
                       (v-concat argsp)
-                      (text ")")))]
+                      rparen))]
       [_ (text d)]))
 
   (check-equal?

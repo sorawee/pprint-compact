@@ -78,6 +78,9 @@
          [(:flush _) fail]
          [(:fail) d]
          [(:text _) d]
+         ;; we can actually prune the annotation since the whole thing is tagged
+         ;; as flat anyway, but leaving things in-place to preserve reference
+         ;; is more worthwhile
          [(:annotate _ 'flat) d]
          [(:annotate doc a)
           (define doc* (loop doc))

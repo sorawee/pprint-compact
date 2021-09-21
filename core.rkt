@@ -92,8 +92,7 @@
      (match candidates
        ['() '()]
        [(cons x xs)
-        (list (for/fold ([best-candidate x])
-                        ([current (in-list xs)])
+        (list (for/fold ([best-candidate x]) ([current (in-list xs)])
                 (min-by best-candidate current #:key measure-width)))])]
     [candidates
      (pareto candidates
