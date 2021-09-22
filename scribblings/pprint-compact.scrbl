@@ -29,13 +29,13 @@
 
 @defmodule[pprint-compact]
 
-This library implements an optimal pretty printer,
+This library implements an optimal pretty printer as described in @citet[Ber17],
 which generates the most optimal textual document from a tree structure.
 
 The library is similar to another pretty printer library @racketmodname[pprint #:indirect],
 but @racketmodname[pprint #:indirect] implements a greedy printer and doesn't support the choice operator (@racket[alt]). In practice, this means @racketmodname[pprint #:indirect] will be more efficient, but it lacks expressivity that this library provides, and could produce a non-optimal layout.
 
-Unlike @link["https://github.com/jyp/prettiest/"]{the canonical Haskell implementation} which removes the choice operator to improve performance, we implement all constructs described in the paper, with additional optimizations and constructs.
+Unlike @link["https://github.com/jyp/prettiest/"]{the canonical Haskell implementation} which removes the choice operator to improve performance, we implement all constructs described in @citet[Ber17], with additional optimizations and constructs.
 
 A part of this documentation and its structure are shamelessly copied/adapted from the PPrint library.
 
