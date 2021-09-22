@@ -39,6 +39,8 @@ Unlike @link["https://github.com/jyp/prettiest/"]{the canonical Haskell implemen
 
 A part of this documentation and its structure are shamelessly copied/adapted from the PPrint library.
 
+@table-of-contents[]
+
 @section{Getting Started}
 
 Here's a simple example of pretty-printing a fragment of code.
