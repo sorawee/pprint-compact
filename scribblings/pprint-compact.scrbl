@@ -12,6 +12,18 @@
 @(evaluator '(require racket/match pprint-compact))
 @(define-cite ~cite citet generate-bibliography)
 
+@(define Ber17
+   (make-bib #:title "A Pretty But Not Greedy Printer"
+             #:url "https://jyp.github.io/pdf/Prettiest.pdf"
+             #:author "Jean-Philippe Bernady"
+             #:date "2017"))
+
+@(define Pod14
+   (make-bib #:title "Polynomial-Time Optimal Pretty-Printing Combinators with Choice"
+             #:url "https://oops.math.spbu.ru/papers/printer-combinators.pdf"
+             #:author (authors "Anton Podkopaev" "Dmitri Boulytchev")
+             #:date "2014"))
+
 @title{pprint-compact: a non-greedy pretty printer}
 @author[@author+email["Sorawee Porncharoenwase" "sorawee.pwase@gmail.com"]]
 
@@ -354,22 +366,14 @@ We can further optimize the function by noticing that if a doc fragment is alrea
 
 @section{Design Notes}
 
-For the history of pretty printer in general, see @secref["history" #:doc '(lib "pprint/pprint.scrbl")] in the @racketmodname[pprint] library.
+For the history of pretty printer in general, see @seclink["history" #:doc '(lib "pprint/pprint.scrbl") #:indirect? #t]{History} in the @racketmodname[pprint #:indirect] library.
 
 This library implements a more recent algorithm described in @citet[Ber17] and @citet[Pod14], which are more expressive and optimal, at the cost of being less efficient. The time complexity of the original algorithm is in the worst case @math{O(n W^4)}, where @math{n} is the @tech{tree size} and @math{W} is the page width.
 This library uses memoization to improve the time complexity to @math{O(n W^4)} where @math{n} is the @tech{DAG size}.
 It also adds features like @racket[fail] and @racket[annotate], which are basis to implement constructs like @racket[flat] efficiently.
 
-@(define Ber17
-   (make-bib #:title "A Pretty But Not Greedy Printer"
-             #:url "https://jyp.github.io/pdf/Prettiest.pdf"
-             #:author "Jean-Philippe Bernady"
-             #:date "2017"))
+@section{Acknowledgment}
 
-@(define Pod14
-   (make-bib #:title "Polynomial-Time Optimal Pretty-Printing Combinators with Choice"
-             #:url "https://oops.math.spbu.ru/papers/printer-combinators.pdf"
-             #:author (authors "Anton Podkopaev" "Dmitri Boulytchev")
-             #:date "2014"))
+I would like to give special thanks to @link["https://justinpombrio.net/"]{Justin Pombrio} for pointing me to @citet[Ber17] and countless advice.
 
 @(generate-bibliography)
