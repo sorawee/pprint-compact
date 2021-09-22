@@ -356,7 +356,7 @@ We can further optimize the function by noticing that if a doc fragment is alrea
 
 For the history of pretty printer in general, see @secref["history" #:doc '(lib "pprint/pprint.scrbl")] in the @racketmodname[pprint] library.
 
-This library implements a more recent algorithm described in @citet[Ber17] and @citet[Pod14], which are more expressive and optimal, at the cost of being less efficient. The time complexity of the original algorithm is @math{O(n W^4)}, where @math{n} is the @tech{tree size} and @math{W} is the page width.
+This library implements a more recent algorithm described in @citet[Ber17] and @citet[Pod14], which are more expressive and optimal, at the cost of being less efficient. The time complexity of the original algorithm is in the worst case @math{O(n W^4)}, where @math{n} is the @tech{tree size} and @math{W} is the page width.
 This library uses memoization to improve the time complexity to @math{O(n W^4)} where @math{n} is the @tech{DAG size}.
 It also adds features like @racket[fail] and @racket[annotate], which are basis to implement constructs like @racket[flat] efficiently.
 
