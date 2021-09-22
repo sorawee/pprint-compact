@@ -4,4 +4,4 @@
 
 (define (memoize f)
   (define table (make-hasheq))
-  (λ args (hash-ref! table args (λ () (apply f args)))))
+  (λ (x) (hash-ref! table x (λ () (f x)))))
