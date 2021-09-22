@@ -3,12 +3,32 @@
 (require "core.rkt"
          "addons.rkt")
 
-(provide (all-from-out "addons.rkt")
+(provide pretty-print
+         pretty-format
+         current-page-width
+         current-page-indent
+         (all-from-out "addons.rkt")
          (except-out (all-from-out "core.rkt")
                      ; we have h-append already
                      concat
                      ; we have alt already
-                     alternatives))
+                     alternatives
+                     ; we have pretty-format already
+                     render))
+
+(define current-page-width (make-parameter 80))
+(define current-page-indent (make-parameter 0))
+
+(define (pretty-print d
+                      #:out [out (current-output-port)]
+                      #:width [width (current-page-width)]
+                      #:indent [indent (current-page-indent)])
+  (display (pretty-format d #:width width #:indent indent) out))
+
+(define (pretty-format d
+                       #:width [width (current-page-width)]
+                       #:indent [indent (current-page-indent)])
+  (render d width indent))
 
 (module+ test
   (require racket/match
@@ -53,8 +73,8 @@
       [_ (text d)]))
 
   (check-equal?
-   (parameterize ([current-max-width 31])
-     (render (pretty '("+" ("foo" "1" "2") ("bar" "2" "3") ("baz" "3" "4")))))
+   (pretty-format (pretty '("+" ("foo" "1" "2") ("bar" "2" "3") ("baz" "3" "4")))
+                  #:width 31)
    #<<EOF
 (+ (foo 1 2)
    (bar 2 3)
@@ -63,8 +83,8 @@ EOF
    )
 
   (check-equal?
-   (parameterize ([current-max-width 31])
-     (render (pretty* '("+" ("foo" "1" "2") ("bar" "2" "3") ("baz" "3" "4")))))
+   (pretty-format (pretty* '("+" ("foo" "1" "2") ("bar" "2" "3") ("baz" "3" "4")))
+                  #:width 31)
    #<<EOF
 (+ (foo 1
         2) (bar 2 3) (baz 3 4))
@@ -72,13 +92,11 @@ EOF
    )
 
   (check-equal?
-   (parameterize ([current-max-width 15])
-     (render (pretty '("+" "123" "456" "789"))))
+   (pretty-format (pretty '("+" "123" "456" "789")) #:width 15)
    "(+ 123 456 789)")
 
   (check-equal?
-   (parameterize ([current-max-width 14])
-     (render (pretty '("+" "123" "456" "789"))))
+   (pretty-format (pretty '("+" "123" "456" "789")) #:width 14)
    #<<EOF
 (+ 123
    456
@@ -87,8 +105,7 @@ EOF
    )
 
   (check-equal?
-   (parameterize ([current-max-width 5])
-     (render (pretty '("+" "123" "456" "789"))))
+   (pretty-format (pretty '("+" "123" "456" "789")) #:width 5)
    #<<EOF
 (+
  123
@@ -103,11 +120,11 @@ EOF
   (define p (open-output-string))
   (define prefix "hello: ")
   (display prefix p)
-  (display (parameterize ([current-max-width 20]
-                          [current-indent (string-length prefix)])
-             (render (pretty (list (list "abcde" abcd4)
-                                   (list "abcdefgh" abcd4)))))
-           p)
+  (pretty-print (pretty (list (list "abcde" abcd4)
+                              (list "abcdefgh" abcd4)))
+                #:out p
+                #:width 20
+                #:indent (string-length prefix))
   (check-equal? (get-output-string p)
                 #<<EOF
 hello: ((abcde ((a b c d)

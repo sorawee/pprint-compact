@@ -2,26 +2,27 @@
 
 (provide render
 
-         (struct-out measure)
+         #;(struct-out measure)
 
-         ;; parameters
-         current-max-width
-         current-indent
+         ;; predicate
+         doc?
 
-         ;; primitives
+         ;; pattern expanders
          :text
          :flush
          :concat
          :alternatives
          :fail
          :annotate
+         #;:select
 
-         ;; constructs
+         ;; primitive constructors
          text
          flush
          concat
          alternatives
          annotate
+         #;select
 
          fail)
 
@@ -34,26 +35,21 @@
   (require rackunit
            racket/set))
 
-(struct :text (s) #:transparent)
-(struct :alternatives (a b) #:transparent)
-(struct :flush (d) #:transparent)
-(struct :concat (a b) #:transparent)
-(struct :fail () #:transparent)
-(struct :annotate (d a) #:transparent)
-#;(struct :select (d p) #:transparent)
+(struct doc () #:transparent)
+(struct :text doc (s) #:transparent #:constructor-name text)
+(struct :alternatives doc (a b) #:transparent #:constructor-name make-alternatives)
+(struct :flush doc (d) #:transparent #:constructor-name make-flush)
+(struct :concat doc (a b) #:transparent #:constructor-name make-concat)
+(struct :fail doc () #:transparent #:constructor-name make-fail)
+(struct :annotate doc (d a) #:transparent #:constructor-name make-annotate)
+#;(struct :select doc (d p) #:transparent #:constructor-name make-select)
 
 (struct measure (width last-width height r) #:transparent)
-
-(define current-max-width (make-parameter 80))
-(define current-indent (make-parameter 0))
 
 (define (min-by x y #:key [key values])
   (cond
     [(<= (key x) (key y)) x]
     [else y]))
-
-(define (valid? candidate)
-  (<= (measure-width candidate) (current-max-width)))
 
 ;; is x dominated by y?
 (define ((dominated? objectives) x y)
@@ -86,19 +82,22 @@
                                 (list first second third)))
                 3))
 
-(define (manage-candidates candidates)
-  (match (filter valid? candidates)
-    ['()
-     (match candidates
-       ['() '()]
-       [(cons x xs)
-        (list (for/fold ([best-candidate x]) ([current (in-list xs)])
-                (min-by best-candidate current #:key measure-width)))])]
-    [candidates
-     (pareto candidates
-             (list measure-width measure-last-width measure-height))]))
+(define (find-optimal-layout d width)
+  (define (valid? candidate)
+    (<= (measure-width candidate) width))
 
-(define (find-optimal-layout d)
+  (define (manage-candidates candidates)
+    (match (filter valid? candidates)
+      ['()
+       (match candidates
+         ['() '()]
+         [(cons x xs)
+          (list (for/fold ([best-candidate x]) ([current (in-list xs)])
+                  (min-by best-candidate current #:key measure-width)))])]
+      [candidates
+       (pareto candidates
+               (list measure-width measure-last-width measure-height))]))
+
   (define render
     (memoize
      (λ (d)
@@ -128,6 +127,7 @@
                         (r-a indent (r-b (+ indent last-width-a) xs))))))]
          [(:alternatives a b) (manage-candidates (append (render a) (render b)))]
          [(:annotate d _) (render d)]
+         #;[(:select d p) (filter p (render d))]
          [(:fail) '()]))))
   (match (render d)
     ['() (raise-arguments-error 'render "the document fails to render")]
@@ -135,23 +135,26 @@
      (for/fold ([best x]) ([current (in-list xs)])
        (min-by best current #:key measure-height))]))
 
-(define (render d)
-  (string-append* ((measure-r (find-optimal-layout d)) (current-indent) '())))
+(define (render d width indent)
+  (string-append* ((measure-r (find-optimal-layout d width)) indent '())))
 
-(define fail (:fail))
+;; perform partial evaluation on the "constructor"s
 
-(define text :text)
+(define fail (make-fail))
 
 (define (flush d)
   (match d
     [(:fail) fail]
-    [_ (:flush d)]))
+    [_ (make-flush d)]))
 
 (define (concat a b)
   (match* (a b)
     [((:fail) _) fail]
     [(_ (:fail)) fail]
-    [(_ _) (:concat a b)]))
+    [((:text "") d) d]
+    [(d (:text "")) d]
+    [((:text sa) (:text sb)) (text (string-append sa sb))]
+    [(_ _) (make-concat a b)]))
 
 (define (alternatives a b)
   (match* (a b)
@@ -160,9 +163,14 @@
     [(_ _)
      (cond
        [(eq? a b) a]
-       [else (:alternatives a b)])]))
+       [else (make-alternatives a b)])]))
 
 (define (annotate d a)
   (match d
     [(:fail) fail]
-    [_ (:annotate d a)]))
+    [_ (make-annotate d a)]))
+
+#;(define (select d p)
+  (match d
+    [(:fail) fail]
+    [_ (make-select d p)]))

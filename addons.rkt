@@ -17,6 +17,7 @@
          flat)
 (require racket/match
          "core.rkt"
+         "process.rkt"
          "memoize.rkt")
 
 (define empty-doc (text ""))
@@ -25,8 +26,8 @@
 (define lparen (text "("))
 (define rparen (text ")"))
 
-(define (alt x . xs)
-  (for/fold ([current x]) ([x (in-list xs)])
+(define (alt . xs)
+  (for/fold ([current fail]) ([x (in-list xs)])
     (alternatives current x)))
 
 (define (fold-doc f xs)
@@ -70,33 +71,17 @@
     ['() empty-doc]
     [xs (alt (hs-concat xs) (v-concat xs))]))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (define (flat d)
   (define loop
     (memoize
      (λ (d)
        (match d
          [(:flush _) fail]
-         [(:fail) d]
-         [(:text _) d]
          ;; we can actually prune the annotation since the whole thing is tagged
          ;; as flat anyway, but leaving things in-place to preserve reference
          ;; is more worthwhile
          [(:annotate _ 'flat) d]
-         [(:annotate doc a)
-          (define doc* (loop doc))
-          (cond
-            [(eq? doc* doc) d]
-            [else (annotate doc* a)])]
-         [(:concat a b)
-          (define a* (loop a))
-          (define b* (loop b))
-          (cond
-            [(and (eq? a* a) (eq? b* b)) d]
-            [else (concat a* b*)])]
-         [(:alternatives a b)
-          (define a* (loop a))
-          (define b* (loop b))
-          (cond
-            [(and (eq? a* a) (eq? b* b)) d]
-            [else (alternatives a* b*)])]))))
+         [_ (doc-process loop d)]))))
   (annotate (loop d) 'flat))
