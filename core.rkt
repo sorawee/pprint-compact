@@ -95,14 +95,9 @@
           (list (for/fold ([best-candidate x]) ([current (in-list xs)])
                   (cond
                     [(= (measure-width best-candidate) (measure-width current))
-                     (cond
-                       [(<= (measure-height best-candidate)
-                            (measure-height current))
-                        best-candidate]
-                       [else current])]
-                    [(< (measure-width best-candidate) (measure-width current))
-                     best-candidate]
-                    [else current])))])]
+                     (min-by best-candidate current #:key measure-height)]
+                    [else
+                     (min-by best-candidate current #:key measure-width)])))])]
       [candidates
        (pareto candidates
                (list measure-width measure-last-width measure-height))]))
