@@ -211,6 +211,12 @@ both @tech{doc} construction and @racket[pretty-print] would be inefficient.
   If @racket[x] can't fit in one line, it fails to render.
 }
 
+@defproc[(flush-if [b any/c] [d doc?]) doc?]{
+  Performs @racket[flush] on @racket[d] if @racket[b] is true.
+  Otherwise, simply returns @racket[d].
+}
+
+
 @subsection{Useful Constants}
 
 
@@ -365,6 +371,20 @@ We can further optimize the function by noticing that if a doc fragment is alrea
             [(:annotate _ 'flat) d]
             [_ (doc-process loop d)]))))
     (annotate (loop d) 'flat))]
+
+@section{Debug}
+
+@defmodule[pprint-compact/debug]
+
+The following functions can be used to measure document size.
+
+@defproc[(dag-size [d doc?]) natural-number/c]{
+  Returns the @tech{DAG size} of @tech{doc} @racket[d].
+}
+
+@defproc[(tree-size [d doc?]) natural-number/c]{
+  Returns the @tech{tree size} of @tech{doc} @racket[d].
+}
 
 @section{Design Notes}
 

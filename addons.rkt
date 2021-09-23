@@ -14,6 +14,8 @@
          v-append
          sep
 
+         flush-if
+
          flat)
 (require racket/match
          "core.rkt"
@@ -85,3 +87,8 @@
          [(:annotate _ 'flat) d]
          [_ (doc-process loop d)]))))
   (annotate (loop d) 'flat))
+
+(define (flush-if b d)
+  (if b
+      (flush d)
+      d))
