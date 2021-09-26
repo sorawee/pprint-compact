@@ -2,6 +2,6 @@
 
 (provide memoize)
 
-(define (memoize f)
-  (define table (make-hasheq))
+(define (memoize f #:backend [backend make-hasheq])
+  (define table (backend))
   (λ (x) (hash-ref! table x (λ () (f x)))))

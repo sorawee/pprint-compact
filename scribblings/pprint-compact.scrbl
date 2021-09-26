@@ -294,8 +294,8 @@ If you wish to process a @tech{doc}, it is highly recommended that your function
 
 @defmodule[pprint-compact/memoize]
 
-@defproc[(memoize [f (-> any/c any/c)]) procedure?]{
-  Memoizes the function @racket[f] based on @racket[eq?] of the input.
+@defproc[(memoize [f (-> any/c any/c)] [#:backend backend procedure? hasheq]) procedure?]{
+  Memoizes the function @racket[f] based on the @racket[backend] data structure.
 }
 
 @subsection{Document Processing Library}
