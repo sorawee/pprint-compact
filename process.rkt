@@ -13,6 +13,11 @@
        [else (flush d*)])]
     [(:fail) fail]
     [(:text _) doc]
+    [(:full d)
+     (define d* (f d))
+     (cond
+       [(eq? d* d) doc]
+       [else (full d*)])]
     [(:annotate d a)
      (define d* (f d))
      (cond
