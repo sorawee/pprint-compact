@@ -86,9 +86,10 @@
          ;; we can actually prune the annotation since the whole thing is tagged
          ;; as flat anyway, but leaving things in-place to preserve reference
          ;; is more worthwhile
-         [(:annotate _ 'flat) d]
+         #;[(:annotate _ 'flat) d]
          [_ (doc-process loop d)]))))
-  (annotate (loop d) 'flat))
+  #;(annotate (loop d) 'flat)
+  (loop d))
 
 (define (flat? m)
   (zero? (measure-height m)))
