@@ -18,6 +18,11 @@
      (cond
        [(eq? d* d) doc]
        [else (annotate d* a)])]
+    [(:select d p)
+     (define d* (f d))
+     (cond
+       [(eq? d* d) doc]
+       [else (select d* p)])]
     [(:concat a b)
      (define a* (f a))
      (define b* (f b))

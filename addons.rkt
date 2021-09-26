@@ -16,7 +16,8 @@
 
          flush-if
 
-         flat)
+         flat
+         flat*)
 (require racket/match
          "core.rkt"
          "process.rkt"
@@ -87,6 +88,12 @@
          [(:annotate _ 'flat) d]
          [_ (doc-process loop d)]))))
   (annotate (loop d) 'flat))
+
+(define (flat? m)
+  (zero? (measure-height m)))
+
+(define (flat* d)
+  (select d flat?))
 
 (define (flush-if b d)
   (if b

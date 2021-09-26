@@ -2,7 +2,7 @@
 
 (provide render
 
-         #;(struct-out measure)
+         (struct-out measure)
 
          ;; predicate
          doc?
@@ -14,7 +14,7 @@
          :alternatives
          :fail
          :annotate
-         #;:select
+         :select
 
          ;; primitive constructors
          text
@@ -22,7 +22,7 @@
          concat
          alternatives
          annotate
-         #;select
+         select
 
          fail)
 
@@ -42,7 +42,7 @@
 (struct :concat doc (a b) #:transparent #:constructor-name make-concat)
 (struct :fail doc () #:transparent #:constructor-name make-fail)
 (struct :annotate doc (d a) #:transparent #:constructor-name make-annotate)
-#;(struct :select doc (d p) #:transparent #:constructor-name make-select)
+(struct :select doc (d p) #:transparent #:constructor-name make-select)
 
 (struct measure (width last-width height r) #:transparent)
 
@@ -131,7 +131,7 @@
                         (r-a indent (r-b (+ indent last-width-a) xs))))))]
          [(:alternatives a b) (manage-candidates (append (render a) (render b)))]
          [(:annotate d _) (render d)]
-         #;[(:select d p) (filter p (render d))]
+         [(:select d p) (filter p (render d))]
          [(:fail) '()]))))
   (match (render d)
     ['() (raise-arguments-error 'render "the document fails to render")]
@@ -174,7 +174,7 @@
     [(:fail) fail]
     [_ (make-annotate d a)]))
 
-#;(define (select d p)
+(define (select d p)
   (match d
     [(:fail) fail]
     [_ (make-select d p)]))
