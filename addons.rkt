@@ -15,6 +15,7 @@
          sep
 
          flush-if
+         indent-next
 
          flat
          flat*)
@@ -99,3 +100,8 @@
   (if b
       (flush d)
       d))
+
+(define space-caches (make-hash))
+
+(define (indent-next n d)
+  (v-append d (hash-ref! space-caches n (λ () (text (make-string n #\space))))))
