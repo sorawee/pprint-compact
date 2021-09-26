@@ -12,6 +12,7 @@
          :flush
          :concat
          :alternatives
+         :full
          :fail
          :annotate
          :select
@@ -21,6 +22,7 @@
          flush
          concat
          alternatives
+         full
          annotate
          select
 
@@ -40,6 +42,7 @@
 (struct :alternatives doc (a b) #:transparent #:constructor-name make-alternatives)
 (struct :flush doc (d) #:transparent #:constructor-name make-flush)
 (struct :concat doc (a b) #:transparent #:constructor-name make-concat)
+(struct :full doc (d) #:transparent #:constructor-name make-full)
 (struct :fail doc () #:transparent #:constructor-name make-fail)
 (struct :annotate doc (d a) #:transparent #:constructor-name make-annotate)
 (struct :select doc (d p) #:transparent #:constructor-name make-select)
@@ -108,32 +111,51 @@
        (match d
          [(:text s)
           (define len (string-length s))
-          (list (measure len len 0 (λ (indent xs) (cons s xs))))]
+          (cons (list (measure len len 0 (λ (indent xs) (cons s xs))))
+                  '())]
+         [(:full d)
+          (match-define (cons as bs) (render d))
+          (cons '() (manage-candidates (append as bs)))]
          [(:flush d)
-          (manage-candidates
-           (for/list ([m (in-list (render d))])
-             (match-define (measure width _ height r) m)
-             (measure
-              width
-              0
-              (add1 height)
-              (λ (indent xs)
-                (r indent (list* "\n" (make-string indent #\space) xs))))))]
+          (match-define (cons as bs) (render d))
+          (cons
+           (manage-candidates
+            (for/list ([m (in-sequences (in-list as) (in-list bs))])
+              (match-define (measure width _ height r) m)
+              (measure
+               width
+               0
+               (add1 height)
+               (λ (indent xs)
+                 (r indent (list* "\n" (make-string indent #\space) xs))))))
+           '())]
          [(:concat a b)
-          (manage-candidates
-           (for*/list ([m-a (in-list (render a))] [m-b (in-list (render b))])
-             (match-define (measure width-a last-width-a height-a r-a) m-a)
-             (match-define (measure width-b last-width-b height-b r-b) m-b)
-             (measure (max width-a (+ last-width-a width-b))
-                      (+ last-width-a last-width-b)
-                      (+ height-a height-b)
-                      (λ (indent xs)
-                        (r-a indent (r-b (+ indent last-width-a) xs))))))]
-         [(:alternatives a b) (manage-candidates (append (render a) (render b)))]
+          (match-define (cons a/no-req _) (render a))
+          (match-define (cons b/no-req b/req) (render b))
+
+          (define (proceed xs ys)
+            (manage-candidates
+             (for*/list ([m-a (in-list xs)] [m-b (in-list ys)])
+               (match-define (measure width-a last-width-a height-a r-a) m-a)
+               (match-define (measure width-b last-width-b height-b r-b) m-b)
+               (measure (max width-a (+ last-width-a width-b))
+                        (+ last-width-a last-width-b)
+                        (+ height-a height-b)
+                        (λ (indent xs)
+                          (r-a indent (r-b (+ indent last-width-a) xs)))))))
+          (cons (proceed a/no-req b/no-req) (proceed a/no-req b/req))]
+         [(:alternatives a b)
+          (match-define (cons a/no-req a/req) (render a))
+          (match-define (cons b/no-req b/req) (render b))
+          (cons (manage-candidates (append a/no-req b/no-req))
+                (manage-candidates (append a/req b/req)))]
          [(:annotate d _) (render d)]
-         [(:select d p) (filter p (render d))]
-         [(:fail) '()]))))
-  (match (render d)
+         [(:select d p)
+          (match-define (cons as bs) (render d))
+          (cons (filter p as) (filter p bs))]
+         [(:fail) (cons '() '())]))))
+  (match-define (cons as bs) (render d))
+  (match (append as bs)
     ['() (raise-arguments-error 'render "the document fails to render")]
     [(cons x xs)
      (for/fold ([best x]) ([current (in-list xs)])
@@ -149,10 +171,13 @@
 (define (flush d)
   (match d
     [(:fail) fail]
+    [(:full d) (flush d)]
     [_ (make-flush d)]))
 
 (define (concat a b)
   (match* (a b)
+    [((:full _) _) fail]
+    [(a (:full b)) (full (concat a b))]
     [((:fail) _) fail]
     [(_ (:fail)) fail]
     [((:text "") d) d]
@@ -172,9 +197,19 @@
 (define (annotate d a)
   (match d
     [(:fail) fail]
+    [(:annotate d a*)
+     (cond
+       [(equal? a a*) d]
+       [(make-annotate d a)])]
     [_ (make-annotate d a)]))
 
 (define (select d p)
   (match d
     [(:fail) fail]
     [_ (make-select d p)]))
+
+(define (full d)
+  (match d
+    [(:full _) d]
+    [(:fail) fail]
+    [_ (make-full d)]))
