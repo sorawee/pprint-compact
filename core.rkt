@@ -95,12 +95,14 @@
        (match candidates
          ['() '()]
          [(cons x xs)
-          (list (for/fold ([best-candidate x]) ([current (in-list xs)])
-                  (cond
-                    [(= (measure-width best-candidate) (measure-width current))
-                     (min-by best-candidate current #:key measure-height)]
-                    [else
-                     (min-by best-candidate current #:key measure-width)])))])]
+          (define target-width
+            (measure-width
+             (for/fold ([best-candidate x]) ([current (in-list xs)])
+               (min-by best-candidate current #:key measure-width))))
+          (pareto
+           (filter (λ (m) (= (measure-width m) target-width))
+                   (cons x xs))
+           (list measure-width measure-last-width measure-height))])]
       [candidates
        (pareto candidates
                (list measure-width measure-last-width measure-height))]))
