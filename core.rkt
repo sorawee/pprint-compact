@@ -47,7 +47,7 @@
 (struct :annotate doc (d a) #:transparent #:constructor-name make-annotate)
 (struct :select doc (d p) #:transparent #:constructor-name make-select)
 
-(struct measure (width last-width height r) #:transparent)
+(struct measure (width immediate-width last-width height r) #:transparent)
 
 (define (min-by x y #:key [key values])
   (cond
@@ -85,27 +85,49 @@
                                 (list first second third)))
                 3))
 
+(define (compute-pareto candidates)
+  (pareto candidates
+          (list measure-width measure-last-width measure-height)))
+
+(define (measure< a b)
+  (cond
+    [(= (measure-width a) (measure-width b))
+     (< (measure-immediate-width a) (measure-immediate-width b))]
+    [else (< (measure-width a) (measure-width b))]))
+
 (define (find-optimal-layout d width)
   (define (valid? candidate)
     (<= (measure-width candidate) width))
 
+  (define ((somewhat-valid best-candidate) candidate)
+    (and (= (measure-width best-candidate)
+            (measure-width candidate))
+         (<= (measure-immediate-width candidate) width)))
+
+  (define ((not-really-valid best-candidate) candidate)
+    (and (= (measure-width best-candidate)
+            (measure-width candidate))
+         (= (measure-immediate-width best-candidate)
+            (measure-immediate-width candidate))))
+
   (define (manage-candidates candidates)
-    (match (filter valid? candidates)
-      ['()
-       (match candidates
-         ['() '()]
-         [(cons x xs)
-          (define target-width
-            (measure-width
-             (for/fold ([best-candidate x]) ([current (in-list xs)])
-               (min-by best-candidate current #:key measure-width))))
-          (pareto
-           (filter (λ (m) (= (measure-width m) target-width))
-                   (cons x xs))
-           (list measure-width measure-last-width measure-height))])]
-      [candidates
-       (pareto candidates
-               (list measure-width measure-last-width measure-height))]))
+    (match candidates
+      ['() '()]
+      [_
+       (define sorted-candidates (sort candidates measure<))
+       (match (takef sorted-candidates valid?)
+         ['()
+          (match (takef sorted-candidates
+                        (somewhat-valid (first sorted-candidates)))
+            ['()
+             (compute-pareto
+              ;; this is going to be non-empty, since the first sorted-candidate
+              ;; will always satisfy (not-really-valid ...)
+              (takef sorted-candidates
+                     (not-really-valid (first sorted-candidates))))]
+            [somewhat-valid-candidates
+             (compute-pareto somewhat-valid-candidates)])]
+         [valid-candidates (compute-pareto valid-candidates)])]))
 
   (define render
     (memoize
@@ -113,7 +135,7 @@
        (match d
          [(:text s)
           (define len (string-length s))
-          (cons (list (measure len len 0 (λ (indent xs) (cons s xs))))
+          (cons (list (measure len 0 len 0 (λ (indent xs) (cons s xs))))
                   '())]
          [(:full d)
           (match-define (cons as bs) (render d))
@@ -123,9 +145,10 @@
           (cons
            (manage-candidates
             (for/list ([m (in-sequences (in-list as) (in-list bs))])
-              (match-define (measure width _ height r) m)
+              (match-define (measure width _ _ height r) m)
               (measure
                width
+               0
                0
                (add1 height)
                (λ (indent xs)
@@ -138,9 +161,10 @@
           (define (proceed xs ys)
             (manage-candidates
              (for*/list ([m-a (in-list xs)] [m-b (in-list ys)])
-               (match-define (measure width-a last-width-a height-a r-a) m-a)
-               (match-define (measure width-b last-width-b height-b r-b) m-b)
+               (match-define (measure width-a _ last-width-a height-a r-a) m-a)
+               (match-define (measure width-b _ last-width-b height-b r-b) m-b)
                (measure (max width-a (+ last-width-a width-b))
+                        (+ last-width-a width-b)
                         (+ last-width-a last-width-b)
                         (+ height-a height-b)
                         (λ (indent xs)
@@ -157,9 +181,12 @@
           (cons (filter p as) (filter p bs))]
          [(:fail) (cons '() '())]))))
   (match-define (cons as bs) (render d))
-  (match (append as bs)
-    ['() (raise-arguments-error 'render "the document fails to render")]
-    [(cons x xs)
+  (match* (as bs)
+    [('() '()) (raise-arguments-error 'render "the document fails to render")]
+    [((cons x xs) ys)
+     (for/fold ([best x]) ([current (in-sequences (in-list xs) (in-list ys))])
+       (min-by best current #:key measure-height))]
+    [('() (cons x xs))
      (for/fold ([best x]) ([current (in-list xs)])
        (min-by best current #:key measure-height))]))
 
