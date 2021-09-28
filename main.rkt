@@ -32,7 +32,13 @@
 
 (module+ test
   (require racket/match
+           racket/string
            rackunit)
+
+  (define (get-dim s)
+    (define ss (string-split s "\n"))
+    (cons (length ss) (apply max (map string-length ss))))
+
   (define (pretty d)
     (match d
       [(list) (text "()")]
@@ -83,13 +89,14 @@ EOF
    )
 
   (check-equal?
-   (pretty-format (pretty* '("+" ("foo" "1" "2") ("bar" "2" "3") ("baz" "3" "4")))
-                  #:width 31)
-   #<<EOF
+   (get-dim
+    (pretty-format (pretty* '("+" ("foo" "1" "2") ("bar" "2" "3") ("baz" "3" "4")))
+                   #:width 31))
+   (get-dim #<<EOF
 (+ (foo 1
         2) (bar 2 3) (baz 3 4))
 EOF
-   )
+            ))
 
   (check-equal?
    (pretty-format (pretty '("+" "123" "456" "789")) #:width 15)
