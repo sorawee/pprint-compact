@@ -105,8 +105,6 @@
   (pareto candidates
           (list measure-width measure-last-width measure-height)))
 
-
-
 (define (find-optimal-layout d max-width)
   (define ((valid? best-candidate) candidate)
     (= (measure-badness best-candidate) (measure-badness candidate)))
@@ -142,25 +140,21 @@
                  (r indent (list* "\n" (make-string indent #\space) xs))))))
            '())]
          [(:concat a b)
-          (define (proceed xs ys)
-            (for*/list ([m-a (in-list xs)] [m-b (in-list ys)])
-              (match-define (measure width-a badness-a last-width-a height-a r-a) m-a)
-              (match-define (measure width-b badness-b last-width-b height-b r-b) m-b)
-              (measure (max width-a (+ last-width-a width-b))
-                       (+ badness-a badness-b)
-                       (+ last-width-a last-width-b)
-                       (+ height-a height-b)
-                       (λ (indent xs)
-                         (r-a indent (r-b (+ indent last-width-a) xs))))))
-
           (match-define (cons a/no-req _) (render a width-limit))
           (define zs
-            (for/list ([a (in-list a/no-req)])
-              (match-define (cons b/no-req b/req)
-                (render b (- width-limit (measure-last-width a))))
-              (cons
-               (proceed (list a) b/no-req)
-               (proceed (list a) b/req))))
+            (for/list ([m-a (in-list a/no-req)])
+              (match-define (measure width-a badness-a last-width-a height-a r-a) m-a)
+              (define (proceed bs)
+                (for/list ([m-b (in-list bs)])
+                  (match-define (measure width-b badness-b last-width-b height-b r-b) m-b)
+                  (measure (max width-a (+ last-width-a width-b))
+                           (+ badness-a badness-b)
+                           (+ last-width-a last-width-b)
+                           (+ height-a height-b)
+                           (λ (indent xs)
+                             (r-a indent (r-b (+ indent last-width-a) xs))))))
+              (match-define (cons b/no-req b/req) (render b (- width-limit last-width-a)))
+              (cons (proceed b/no-req) (proceed b/req))))
           (cons
            (manage-candidates (append* (map car zs)))
            (manage-candidates (append* (map cdr zs))))]
