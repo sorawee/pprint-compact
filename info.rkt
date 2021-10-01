@@ -1,6 +1,7 @@
 #lang info
 (define collection "pprint-compact")
-(define deps '("base"))
+(define deps '("pareto-frontier"
+               "base"))
 (define build-deps '("scribble-lib" "racket-doc" "rackunit-lib"))
 (define scribblings '(("scribblings/pprint-compact.scrbl" ())))
 (define pkg-desc "An implementation of 'A Pretty But Not Greedy Printer'")

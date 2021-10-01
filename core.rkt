@@ -31,7 +31,8 @@
 (require racket/match
          racket/list
          racket/string
-         "memoize.rkt")
+         pareto-frontier
+         (submod "memoize.rkt" private))
 
 (module+ test
   (require rackunit
@@ -61,49 +62,9 @@
       [(< (key (first best)) (key x)) best]
       [else (list x)])))
 
-;; is x dominated by y?
-(define ((dominated? objectives) x y)
-  (andmap (λ (objective) (>= (objective x) (objective y))) objectives))
-
-(define ((lexicographic-order< objectives) x y)
-  (let loop ([objectives objectives])
-    (match objectives
-      [(cons objective objectives)
-       (cond
-         [(= (objective x) (objective y)) (loop objectives)]
-         [else (< (objective x) (objective y))])]
-      [_ #f])))
-
-(define (pareto xs objectives)
-  (define domed? (dominated? objectives))
-  (define xs* (sort xs (lexicographic-order< objectives)))
-  (for/fold ([frontier '()]) ([current (in-list xs*)])
-    (cond
-      [(ormap (λ (front) (domed? current front)) frontier) frontier]
-      [else (cons current frontier)])))
-
-(module+ test
-  (check-equal? (list->set (pareto (list (list 1 5 6)
-                                         (list 1 5 7)
-                                         (list 1 6 5)
-                                         (list 2 4 7))
-                                   (list first second third)))
-                (set (list 1 5 6)
-                     (list 1 6 5)
-                     (list 2 4 7)))
-
-  (check-equal? (length (pareto (list (list 1 5 6)
-                                      (list 1 5 7)
-                                      (list 1 6 5)
-                                      (list 1 6 5)
-                                      (list 2 4 7))
-                                (list first second third)))
-                3))
-
 ;; precondition: all badness are equal
 (define (compute-pareto candidates)
-  (pareto candidates
-          (list measure-width measure-last-width measure-height)))
+  (pareto-frontier-3 candidates measure-width measure-last-width measure-height))
 
 (define (find-optimal-layout d max-width)
   (define ((valid? best-candidate) candidate)
@@ -116,6 +77,7 @@
 
   (define render
     (memoize2
+     max-width
      (λ (d width-limit)
        (match d
          [(:text s)
@@ -144,16 +106,18 @@
           (define zs
             (for/list ([m-a (in-list a/no-req)])
               (match-define (measure width-a badness-a last-width-a height-a r-a) m-a)
+              (define penalty-multiplier (max 0 (- last-width-a width-limit)))
+              (define remaining-width (max 0 (- width-limit last-width-a)))
               (define (proceed bs)
                 (for/list ([m-b (in-list bs)])
                   (match-define (measure width-b badness-b last-width-b height-b r-b) m-b)
                   (measure (max width-a (+ last-width-a width-b))
-                           (+ badness-a badness-b)
+                           (+ badness-a badness-b (* (add1 height-b) penalty-multiplier))
                            (+ last-width-a last-width-b)
                            (+ height-a height-b)
                            (λ (indent xs)
                              (r-a indent (r-b (+ indent last-width-a) xs))))))
-              (match-define (cons b/no-req b/req) (render b (- width-limit last-width-a)))
+              (match-define (cons b/no-req b/req) (render b remaining-width))
               (cons (proceed b/no-req) (proceed b/req))))
           (cons
            (manage-candidates (append* (map car zs)))
