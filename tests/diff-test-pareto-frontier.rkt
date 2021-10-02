@@ -25,7 +25,7 @@
     (for/list ([i (random 100)])
       (measure (random 100) (random 100) (random 100) #f)))
 
-  (for ([i (in-naturals)])
+  (for ([i (in-range 10000)])
     (define orig (gen))
     (define xs (compute-frontier orig))
     (define ys (naive orig))
