@@ -28,6 +28,11 @@
      (cond
        [(eq? d* d) doc]
        [else (select d* p)])]
+    [(:worsen d n)
+     (define d* (f d))
+     (cond
+       [(eq? d* d) doc]
+       [else (worsen d* n)])]
     [(:concat a b)
      (define a* (f a))
      (define b* (f b))

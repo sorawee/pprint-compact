@@ -16,6 +16,7 @@
          :fail
          :annotate
          :select
+         :worsen
 
          ;; primitive constructors
          text
@@ -25,6 +26,7 @@
          full
          annotate
          select
+         worsen
 
          fail)
 
@@ -47,6 +49,7 @@
 (struct :fail doc () #:transparent #:constructor-name make-fail)
 (struct :annotate doc (d a) #:transparent #:constructor-name make-annotate)
 (struct :select doc (d p) #:transparent #:constructor-name make-select)
+(struct :worsen doc (d n) #:transparent #:constructor-name make-worsen)
 
 (struct measure (width badness last-width height r) #:transparent)
 
@@ -132,6 +135,12 @@
          [(:select d p)
           (match-define (cons as bs) (render d width-limit))
           (cons (filter p as) (filter p bs))]
+         [(:worsen d n)
+          (match-define (cons as bs) (render d width-limit))
+          (cons (for/list ([a (in-list as)])
+                  (struct-copy measure a [height (+ n (measure-height a))]))
+                (for/list ([b (in-list bs)])
+                  (struct-copy measure b [height (+ n (measure-height b))])))]
          [(:fail) (cons '() '())]))))
   (match-define (cons as bs) (render d max-width))
   (match (manage-candidates (append as bs))
@@ -192,3 +201,8 @@
     [(:full _) d]
     [(:fail) fail]
     [_ (make-full d)]))
+
+(define (worsen d n)
+  (match d
+    [(:fail) fail]
+    [_ (make-worsen d n)]))
