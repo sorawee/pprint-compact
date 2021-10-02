@@ -91,6 +91,8 @@
               (match-define (measure badness-a last-width-a height-a r-a) m-a)
               (define penalty-multiplier (max 0 (- last-width-a width-limit)))
               (define remaining-width (max 0 (- width-limit last-width-a)))
+              ;; make +inf.0 reference canonical
+              (define remaining-width* (if (= +inf.0 remaining-width) +inf.0 remaining-width))
               (define (proceed bs)
                 (for/list ([m-b (in-list bs)])
                   (match-define (measure badness-b last-width-b height-b r-b) m-b)
@@ -99,7 +101,7 @@
                            (+ height-a height-b)
                            (λ (indent xs)
                              (r-a indent (r-b (+ indent last-width-a) xs))))))
-              (match-define (cons b/no-req b/req) (render b remaining-width))
+              (match-define (cons b/no-req b/req) (render b remaining-width*))
               (cons (proceed b/no-req) (proceed b/req))))
           (cons
            (compute-frontier (append* (map car zs)))
