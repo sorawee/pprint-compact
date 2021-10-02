@@ -33,6 +33,8 @@
 (require racket/match
          racket/list
          racket/string
+         "measure.rkt"
+         "pareto-frontier.rkt"
          "memoize.rkt")
 
 (module+ test
@@ -50,45 +52,12 @@
 (struct :select doc (d p) #:transparent #:constructor-name make-select)
 (struct :worsen doc (d n) #:transparent #:constructor-name make-worsen)
 
-(struct measure (badness last-width height r) #:transparent)
-
 (define (mins-by xs #:key [key values])
   (for/fold ([best (list (first xs))]) ([x (in-list (rest xs))])
     (cond
       [(= (key (first best)) (key x)) (cons x best)]
       [(< (key (first best)) (key x)) best]
       [else (list x)])))
-
-(define (measure< a b)
-  (cond
-    [(= (measure-last-width a) (measure-last-width b))
-     (cond
-       [(= (measure-badness a) (measure-badness b))
-        (< (measure-height a) (measure-height b))]
-       [else (< (measure-badness a) (measure-badness b))])]
-    [else (< (measure-last-width a) (measure-last-width b))]))
-
-
-(define (measure-projected< a b)
-  (cond
-    [(= (measure-badness a) (measure-badness b))
-     (< (measure-height a) (measure-height b))]
-    [else (< (measure-badness a) (measure-badness b))]))
-
-(define (manage-candidates candidates)
-  (match candidates
-    ['() '()]
-    [(list x) candidates]
-    [_
-     (define xs (sort candidates measure<))
-     (let loop ([xs (rest xs)] [acc (list (first xs))])
-       (match xs
-         ['() acc]
-         [(cons x xs)
-          (define lowest (first acc))
-          (cond
-            [(measure-projected< x lowest) (loop xs (cons x acc))]
-            [else (loop xs acc)])]))]))
 
 (define (find-optimal-layout d max-width)
   (define render
@@ -101,11 +70,11 @@
                 '())]
          [(:full d)
           (match-define (cons as bs) (render d width-limit))
-          (cons '() (manage-candidates (append as bs)))]
+          (cons '() (compute-frontier (append as bs)))]
          [(:flush d)
           (match-define (cons as bs) (render d width-limit))
           (cons
-           (manage-candidates
+           (compute-frontier
             (for/list ([m (in-sequences (in-list as) (in-list bs))])
               (match-define (measure badness _ height r) m)
               (measure
@@ -133,14 +102,14 @@
               (match-define (cons b/no-req b/req) (render b remaining-width))
               (cons (proceed b/no-req) (proceed b/req))))
           (cons
-           (manage-candidates (append* (map car zs)))
-           (manage-candidates (append* (map cdr zs))))]
+           (compute-frontier (append* (map car zs)))
+           (compute-frontier (append* (map cdr zs))))]
 
          [(:alternatives a b)
           (match-define (cons a/no-req a/req) (render a width-limit))
           (match-define (cons b/no-req b/req) (render b width-limit))
-          (cons (manage-candidates (append a/no-req b/no-req))
-                (manage-candidates (append a/req b/req)))]
+          (cons (compute-frontier (append a/no-req b/no-req))
+                (compute-frontier (append a/req b/req)))]
          [(:annotate d _) (render d width-limit)]
          [(:select d p)
           (match-define (cons as bs) (render d width-limit))
@@ -153,7 +122,7 @@
                   (struct-copy measure b [height (+ n (measure-height b))])))]
          [(:fail) (cons '() '())]))))
   (match-define (cons as bs) (render d max-width))
-  (match (manage-candidates (append as bs))
+  (match (compute-frontier (append as bs))
     ['() (raise-arguments-error 'render "the document fails to render")]
     [xs (first (mins-by (mins-by xs #:key measure-badness) #:key measure-height))]))
 
