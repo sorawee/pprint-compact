@@ -68,34 +68,27 @@
        [else (< (measure-badness a) (measure-badness b))])]
     [else (< (measure-last-width a) (measure-last-width b))]))
 
+
+(define (measure-projected< a b)
+  (cond
+    [(= (measure-badness a) (measure-badness b))
+     (< (measure-height a) (measure-height b))]
+    [else (< (measure-badness a) (measure-badness b))]))
+
 (define (manage-candidates candidates)
   (match candidates
     ['() '()]
     [(list x) candidates]
     [_
-     (let loop ([xs (sort candidates measure<)] [len (length candidates)])
+     (define xs (sort candidates measure<))
+     (let loop ([xs (rest xs)] [acc (list (first xs))])
        (match xs
-         [(list) '()]
-         [(list x) (list x)]
-         [_
-          (define pos (quotient len 2))
-          (define-values (front back) (split-at xs pos))
-          (define front* (loop front pos))
-          (define back* (loop back (- len pos)))
-          (let loop ([front front*] [back back*] [acc '()])
-            (match-define (cons f _) front)
-            (match back
-              [(cons b back*)
-               (cond
-                 [(< (measure-badness f) (measure-badness b))
-                  (loop front back* acc)]
-                 [(= (measure-badness f) (measure-badness b))
-                  (cond
-                    [(<= (measure-height f) (measure-height b)) (loop front back* acc)]
-                    [else (loop front back* (cons b acc))])]
-                 [(< (measure-badness b) (measure-badness f))
-                  (loop front back* (cons b acc))])]
-              ['() (append (reverse acc) front)]))]))]))
+         ['() acc]
+         [(cons x xs)
+          (define lowest (first acc))
+          (cond
+            [(measure-projected< x lowest) (loop xs (cons x acc))]
+            [else (loop xs acc)])]))]))
 
 (define (find-optimal-layout d max-width)
   (define render
