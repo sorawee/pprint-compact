@@ -33,7 +33,6 @@
 (require racket/match
          racket/list
          racket/string
-         pareto-frontier
          (submod "memoize.rkt" private))
 
 (module+ test
@@ -51,12 +50,7 @@
 (struct :select doc (d p) #:transparent #:constructor-name make-select)
 (struct :worsen doc (d n) #:transparent #:constructor-name make-worsen)
 
-(struct measure (width badness last-width height r) #:transparent)
-
-(define (min-by x y #:key [key values])
-  (cond
-    [(<= (key x) (key y)) x]
-    [else y]))
+(struct measure (badness last-width height r) #:transparent)
 
 (define (mins-by xs #:key [key values])
   (for/fold ([best (list (first xs))]) ([x (in-list (rest xs))])
@@ -65,19 +59,45 @@
       [(< (key (first best)) (key x)) best]
       [else (list x)])))
 
-;; precondition: all badness are equal
-(define (compute-pareto candidates)
-  (pareto-frontier-3 candidates measure-width measure-last-width measure-height))
+(define (measure< a b)
+  (cond
+    [(= (measure-last-width a) (measure-last-width b))
+     (cond
+       [(= (measure-badness a) (measure-badness b))
+        (< (measure-height a) (measure-height b))]
+       [else (< (measure-badness a) (measure-badness b))])]
+    [else (< (measure-last-width a) (measure-last-width b))]))
+
+(define (manage-candidates candidates)
+  (match candidates
+    ['() '()]
+    [(list x) candidates]
+    [_
+     (let loop ([xs (sort candidates measure<)] [len (length candidates)])
+       (match xs
+         [(list) '()]
+         [(list x) (list x)]
+         [_
+          (define pos (quotient len 2))
+          (define-values (front back) (split-at xs pos))
+          (define front* (loop front pos))
+          (define back* (loop back (- len pos)))
+          (let loop ([front front*] [back back*] [acc '()])
+            (match-define (cons f _) front)
+            (match back
+              [(cons b back*)
+               (cond
+                 [(< (measure-badness f) (measure-badness b))
+                  (loop front back* acc)]
+                 [(= (measure-badness f) (measure-badness b))
+                  (cond
+                    [(<= (measure-height f) (measure-height b)) (loop front back* acc)]
+                    [else (loop front back* (cons b acc))])]
+                 [(< (measure-badness b) (measure-badness f))
+                  (loop front back* (cons b acc))])]
+              ['() (append (reverse acc) front)]))]))]))
 
 (define (find-optimal-layout d max-width)
-  (define ((valid? best-candidate) candidate)
-    (= (measure-badness best-candidate) (measure-badness candidate)))
-
-  (define (manage-candidates candidates)
-    (match candidates
-      ['() '()]
-      [_ (compute-pareto (mins-by candidates #:key measure-badness))]))
-
   (define render
     (memoize2
      max-width
@@ -85,7 +105,7 @@
        (match d
          [(:text s)
           (define len (string-length s))
-          (cons (list (measure len (max 0 (- len width-limit)) len 0 (λ (indent xs) (cons s xs))))
+          (cons (list (measure (max 0 (- len width-limit)) len 0 (λ (indent xs) (cons s xs))))
                 '())]
          [(:full d)
           (match-define (cons as bs) (render d width-limit))
@@ -95,9 +115,8 @@
           (cons
            (manage-candidates
             (for/list ([m (in-sequences (in-list as) (in-list bs))])
-              (match-define (measure width badness _ height r) m)
+              (match-define (measure badness _ height r) m)
               (measure
-               width
                badness
                0
                (add1 height)
@@ -108,14 +127,13 @@
           (match-define (cons a/no-req _) (render a width-limit))
           (define zs
             (for/list ([m-a (in-list a/no-req)])
-              (match-define (measure width-a badness-a last-width-a height-a r-a) m-a)
+              (match-define (measure badness-a last-width-a height-a r-a) m-a)
               (define penalty-multiplier (max 0 (- last-width-a width-limit)))
               (define remaining-width (max 0 (- width-limit last-width-a)))
               (define (proceed bs)
                 (for/list ([m-b (in-list bs)])
-                  (match-define (measure width-b badness-b last-width-b height-b r-b) m-b)
-                  (measure (max width-a (+ last-width-a width-b))
-                           (+ badness-a badness-b (* (add1 height-b) penalty-multiplier))
+                  (match-define (measure badness-b last-width-b height-b r-b) m-b)
+                  (measure (+ badness-a badness-b (* (add1 height-b) penalty-multiplier))
                            (+ last-width-a last-width-b)
                            (+ height-a height-b)
                            (λ (indent xs)
@@ -145,9 +163,7 @@
   (match-define (cons as bs) (render d max-width))
   (match (manage-candidates (append as bs))
     ['() (raise-arguments-error 'render "the document fails to render")]
-    [(cons x xs)
-     (for/fold ([best x]) ([current (in-list xs)])
-       (min-by best current #:key measure-height))]))
+    [xs (first (mins-by (mins-by xs #:key measure-badness) #:key measure-height))]))
 
 (define (render d width indent)
   (string-append* ((measure-r (find-optimal-layout d width)) indent '())))
