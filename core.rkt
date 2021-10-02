@@ -33,7 +33,7 @@
 (require racket/match
          racket/list
          racket/string
-         (submod "memoize.rkt" private))
+         "memoize.rkt")
 
 (module+ test
   (require rackunit
@@ -93,7 +93,6 @@
 (define (find-optimal-layout d max-width)
   (define render
     (memoize2
-     max-width
      (λ (d width-limit)
        (match d
          [(:text s)
