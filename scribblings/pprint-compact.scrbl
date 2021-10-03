@@ -152,9 +152,12 @@ both @tech{doc} construction and @racket[pretty-print] would be inefficient.
 
 @subsection{Constructing Documents}
 
-@defproc[(text [s string?]) doc?]{
-  Constructs a @tech{doc} containing the fixed string @racket[s].
-  @racket[s] must @bold{not} contain a newline character.
+@defproc[(text [s string?] [#:len len natural-number/c (string-length s)]) doc?]{
+  Constructs a @tech{doc} containing the fixed string @racket[s] of length @racket[len].
+  @racket[s] should @bold{not} contain a newline character.
+
+  Under normal circumstance, @racket[len] should @bold{not} be provided.
+  It is only useful under limited circumstances where one wants to fake the width of @racket[s].
 }
 
 @defproc[(flush [d doc?]) doc?]{
@@ -253,8 +256,8 @@ We provide these @seclink["Extending_match" #:doc '(lib "scribblings/reference/r
 The match expanders are illegal outside of the pattern position of the @racket[match] form.
 Keep in mind that this list is unstable and could change across versions of the library.
 
-@defform[(:text s)]{
-  A match expander that recognizes text @racket[s] of type @racket[string?].
+@defform[(:text s len)]{
+  A match expander that recognizes text @racket[s] of type @racket[string?] of length @racket[len] of type @racket[natural-number/c].
 }
 
 @defform[(:flush d)]{

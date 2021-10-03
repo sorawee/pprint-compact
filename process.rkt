@@ -12,7 +12,7 @@
        [(eq? d* d) doc]
        [else (flush d*)])]
     [(:fail) fail]
-    [(:text _) doc]
+    [(:text _ _) doc]
     [(:full d)
      (define d* (f d))
      (cond
