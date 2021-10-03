@@ -29,8 +29,8 @@
 
 @defmodule[pprint-compact]
 
-This library implements an optimal pretty printer as described in @citet[Ber17],
-which generates the most optimal textual document from a tree structure.
+This library implements an optimal pretty printer inspired by @citet[Ber17] and @citet[Pod14].
+The pretty printer generates the most optimal textual document from a tree structure.
 
 The library is similar to another pretty printer library @racketmodname[pprint #:indirect],
 but @racketmodname[pprint #:indirect] implements a greedy printer and doesn't support the choice operator (@racket[alt]). In practice, this means @racketmodname[pprint #:indirect] will be more efficient, but it lacks expressivity that this library provides, and could produce a non-optimal layout.
@@ -390,8 +390,11 @@ The following functions can be used to measure document size.
 
 For the history of pretty printer in general, see @seclink["history" #:doc '(lib "pprint/pprint.scrbl") #:indirect? #t]{History} in the @racketmodname[pprint #:indirect] library.
 
-This library implements a more recent algorithm described in @citet[Ber17] and @citet[Pod14], which are more expressive and optimal, at the cost of being less efficient. The time complexity of the original algorithm is in the worst case @math{O(n W^4)}, where @math{n} is the @tech{tree size} and @math{W} is the page width.
-This library uses memoization to improve the time complexity to @math{O(n W^4)} where @math{n} is the @tech{DAG size}.
+Two recent algorithms are proposed in @citet[Ber17] and @citet[Pod14], which are more expressive and optimal at the cost of being less efficient, compared to other greedy pretty printers.
+The time complexity of the algorithm in @citet[Ber17] is @math{O(n W^4 log W)}, where @math{n} is the @tech{tree size} and @math{W} is the page width (when using an efficient Pareto frontier computation), though in practice it is fairly fast.
+Similarly, the time complexity of the algorithm in @citet[Pod14] is @math{O(n W^4)}, where @math{n} is the @tech{tree size} and @math{W} is the page width, though in practice it is fairly slow.
+
+This library implements a novel algorithm inspired by @citet[Ber17] and @citet[Pod14]. It uses various techniques to improve the time complexity to @math{O(n W^3 log W)} where @math{n} is the @tech{DAG size}, while making it fast in practice.
 It also adds features like @racket[fail] and @racket[annotate], which are basis to implement constructs like @racket[flat] efficiently.
 
 @section{Acknowledgment}
