@@ -37,8 +37,12 @@
          "pareto-frontier.rkt"
          "memoize.rkt")
 
+(module+ test
+  (require rackunit
+           racket/set))
+
 (struct doc () #:transparent)
-(struct :text doc (s len) #:transparent #:constructor-name make-text)
+(struct :text doc (s) #:transparent #:constructor-name text)
 (struct :alternatives doc (a b) #:transparent #:constructor-name make-alternatives)
 (struct :flush doc (d) #:transparent #:constructor-name make-flush)
 (struct :concat doc (a b) #:transparent #:constructor-name make-concat)
@@ -60,7 +64,8 @@
     (memoize2
      (λ (d width-limit)
        (match d
-         [(:text s len)
+         [(:text s)
+          (define len (string-length s))
           (cons (list (measure (max 0 (- len width-limit)) len 0 (λ (indent xs) (cons s xs))))
                 '())]
          [(:full d)
@@ -130,9 +135,6 @@
 
 (define fail (make-fail))
 
-(define (text s #:len [len (string-length s)])
-  (make-text s len))
-
 (define (flush d)
   (match d
     [(:fail) fail]
@@ -145,9 +147,9 @@
     [(a (:full b)) (full (concat a b))]
     [((:fail) _) fail]
     [(_ (:fail)) fail]
-    [((:text "" 0) d) d]
-    [(d (:text "" 0)) d]
-    [((:text sa la) (:text sb lb)) (text (string-append sa sb) #:len (+ la lb))]
+    [((:text "") d) d]
+    [(d (:text "")) d]
+    [((:text sa) (:text sb)) (text (string-append sa sb))]
     [(_ _) (make-concat a b)]))
 
 (define (alternatives a b)
