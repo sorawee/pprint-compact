@@ -96,7 +96,7 @@
               (define (proceed bs)
                 (for/list ([m-b (in-list bs)])
                   (match-define (measure badness-b last-width-b height-b r-b) m-b)
-                  (measure (+ badness-a badness-b (* (add1 height-b) penalty-multiplier))
+                  (measure (+ badness-a badness-b (* height-b penalty-multiplier))
                            (+ last-width-a last-width-b)
                            (+ height-a height-b)
                            (λ (indent xs)
