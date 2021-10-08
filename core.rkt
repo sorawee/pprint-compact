@@ -33,9 +33,28 @@
 (require racket/match
          racket/list
          racket/string
+         syntax/parse/define
          "measure.rkt"
          "pareto-frontier.rkt"
-         "memoize.rkt")
+         "memoize.rkt"
+         (for-syntax racket/base))
+
+(define-for-syntax current-debug? #f)
+
+(define-syntax-parse-rule (cond-dbg
+                           [#:dbg e ...+]
+                           [#:prod e2 ...+])
+  #:with out (if current-debug?
+                 #'(let () e ...)
+                 #'(let () e2 ...))
+  out)
+
+(cond-dbg
+ [#:dbg
+  (displayln "==========")
+  (displayln "debug mode")
+  (displayln "==========")]
+ [#:prod (void)])
 
 (module+ test
   (require rackunit
@@ -136,52 +155,66 @@
 (define fail (make-fail))
 
 (define (flush d)
-  (match d
-    [(:fail) fail]
-    [(:full d) (flush d)]
-    [_ (make-flush d)]))
+  (cond-dbg
+   [#:dbg (make-flush d)]
+   [#:prod (match d
+             [(:fail) fail]
+             [(:full d) (flush d)]
+             [_ (make-flush d)])]))
 
 (define (concat a b)
-  (match* (a b)
-    [((:full _) _) fail]
-    [(a (:full b)) (full (concat a b))]
-    [((:fail) _) fail]
-    [(_ (:fail)) fail]
-    [((:text "") d) d]
-    [(d (:text "")) d]
-    [((:text sa) (:text sb)) (text (string-append sa sb))]
-    [(_ _) (make-concat a b)]))
+  (cond-dbg
+   [#:dbg (make-concat a b)]
+   [#:prod (match* (a b)
+             [((:full _) _) fail]
+             [(a (:full b)) (full (concat a b))]
+             [((:fail) _) fail]
+             [(_ (:fail)) fail]
+             [((:text "") d) d]
+             [(d (:text "")) d]
+             [((:text sa) (:text sb)) (text (string-append sa sb))]
+             [(_ _) (make-concat a b)])]))
 
 (define (alternatives a b)
-  (match* (a b)
-    [((:fail) _) b]
-    [(_ (:fail)) a]
-    [(_ _)
-     (cond
-       [(eq? a b) a]
-       [else (make-alternatives a b)])]))
+  (cond-dbg
+   [#:dbg (make-alternatives a b)]
+   [#:prod (match* (a b)
+             [((:fail) _) b]
+             [(_ (:fail)) a]
+             [(_ _)
+              (cond
+                [(eq? a b) a]
+                [else (make-alternatives a b)])])]))
 
 (define (annotate d a)
-  (match d
-    [(:fail) fail]
-    [(:annotate d a*)
-     (cond
-       [(equal? a a*) d]
-       [(make-annotate d a)])]
-    [_ (make-annotate d a)]))
+  (cond-dbg
+   [#:dbg (make-annotate d a)]
+   [#:prod (match d
+             [(:fail) fail]
+             [(:annotate d a*)
+              (cond
+                [(equal? a a*) d]
+                [(make-annotate d a)])]
+             [_ (make-annotate d a)])]))
 
 (define (select d p)
-  (match d
-    [(:fail) fail]
-    [_ (make-select d p)]))
+  (cond-dbg
+   [#:dbg (make-select d p)]
+   [#:prod (match d
+             [(:fail) fail]
+             [_ (make-select d p)])]))
 
 (define (full d)
-  (match d
-    [(:full _) d]
-    [(:fail) fail]
-    [_ (make-full d)]))
+  (cond-dbg
+   [#:dbg (make-full d)]
+   [#:prod (match d
+             [(:full _) d]
+             [(:fail) fail]
+             [_ (make-full d)])]))
 
 (define (worsen d n)
-  (match d
-    [(:fail) fail]
-    [_ (make-worsen d n)]))
+  (cond-dbg
+   [#:dbg (make-worsen d n)]
+   [#:prod (match d
+             [(:fail) fail]
+             [_ (make-worsen d n)])]))
