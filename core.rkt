@@ -11,6 +11,7 @@
          :text
          :flush
          :concat
+         :align
          :alternatives
          :full
          :fail
@@ -22,6 +23,7 @@
          text
          flush
          concat
+         align
          alternatives
          full
          annotate
@@ -33,6 +35,7 @@
 (require racket/match
          racket/list
          racket/string
+         racket/pretty
          syntax/parse/define
          "measure.rkt"
          "pareto-frontier.rkt"
@@ -41,9 +44,9 @@
 
 (define-for-syntax current-debug? #f)
 
-(define-syntax-parse-rule (cond-dbg
-                           [#:dbg e ...+]
-                           [#:prod e2 ...+])
+(define-simple-macro (cond-dbg
+                      [#:dbg e ...+]
+                      [#:prod e2 ...+])
   #:with out (if current-debug?
                  #'(let () e ...)
                  #'(let () e2 ...))
@@ -56,14 +59,11 @@
   (displayln "==========")]
  [#:prod (void)])
 
-(module+ test
-  (require rackunit
-           racket/set))
-
 (struct doc () #:transparent)
 (struct :text doc (s) #:transparent #:constructor-name text)
 (struct :alternatives doc (a b) #:transparent #:constructor-name make-alternatives)
 (struct :flush doc (d) #:transparent #:constructor-name make-flush)
+(struct :align doc (d) #:transparent #:constructor-name make-align)
 (struct :concat doc (a b) #:transparent #:constructor-name make-concat)
 (struct :full doc (d) #:transparent #:constructor-name make-full)
 (struct :fail doc () #:transparent #:constructor-name make-fail)
@@ -78,77 +78,150 @@
       [(< (key (first best)) (key x)) best]
       [else (list x)])))
 
-(define (find-optimal-layout d max-width)
-  (define render
-    (memoize2
-     (λ (d width-limit)
-       (match d
-         [(:text s)
-          (define len (string-length s))
-          (cons (list (measure (max 0 (- len width-limit)) len 0 (λ (indent xs) (cons s xs))))
-                '())]
-         [(:full d)
-          (match-define (cons as bs) (render d width-limit))
-          (cons '() (compute-frontier (append as bs)))]
-         [(:flush d)
-          (match-define (cons as bs) (render d width-limit))
-          (cons
-           (compute-frontier
-            (for/list ([m (in-sequences (in-list as) (in-list bs))])
-              (match-define (measure badness _ height r) m)
-              (measure
-               badness
-               0
-               (add1 height)
-               (λ (indent xs)
-                 (r indent (list* "\n" (make-string indent #\space) xs))))))
-           '())]
-         [(:concat a b)
-          (match-define (cons a/no-req _) (render a width-limit))
-          (define zs
-            (for/list ([m-a (in-list a/no-req)])
-              (match-define (measure badness-a last-width-a height-a r-a) m-a)
-              (define penalty-multiplier (max 0 (- last-width-a width-limit)))
-              (define remaining-width (max 0 (- width-limit last-width-a)))
-              ;; make +inf.0 reference canonical
-              (define remaining-width* (if (= +inf.0 remaining-width) +inf.0 remaining-width))
-              (define (proceed bs)
-                (for/list ([m-b (in-list bs)])
-                  (match-define (measure badness-b last-width-b height-b r-b) m-b)
-                  (measure (+ badness-a badness-b (* height-b penalty-multiplier))
-                           (+ last-width-a last-width-b)
-                           (+ height-a height-b)
-                           (λ (indent xs)
-                             (r-a indent (r-b (+ indent last-width-a) xs))))))
-              (match-define (cons b/no-req b/req) (render b remaining-width*))
-              (cons (proceed b/no-req) (proceed b/req))))
-          (cons
-           (compute-frontier (append* (map car zs)))
-           (compute-frontier (append* (map cdr zs))))]
+(define (return d width-limit first-limit full? out)
+  #;(cond-dbg
+   [#:dbg
+    (displayln "--------------------")
+    (printf "d: ~e\n" d)
+    (printf "width-limit: ~a\n" width-limit)
+    (printf "first-limit: ~a\n" first-limit)
+    (printf "full?: ~a\n" full?)
+    (printf "out: ~a\n" out)]
+   [#:prod (void)])
+  out)
 
-         [(:alternatives a b)
-          (match-define (cons a/no-req a/req) (render a width-limit))
-          (match-define (cons b/no-req b/req) (render b width-limit))
-          (cons (compute-frontier (append a/no-req b/no-req))
-                (compute-frontier (append a/req b/req)))]
-         [(:annotate d _) (render d width-limit)]
-         [(:select d p)
-          (match-define (cons as bs) (render d width-limit))
-          (cons (filter p as) (filter p bs))]
-         [(:worsen d n)
-          (match-define (cons as bs) (render d width-limit))
-          (cons (for/list ([a (in-list as)])
-                  (struct-copy measure a [height (+ n (measure-height a))]))
-                (for/list ([b (in-list bs)])
-                  (struct-copy measure b [height (+ n (measure-height b))])))]
-         [(:fail) (cons '() '())]))))
-  (match-define (cons as bs) (render d max-width))
+(define (find-optimal-layout d max-width max-first)
+  ;; render :: doc?, nat?, int?, bool? -> (listof measure?)
+  (define render
+    (memoize*
+     (λ (d width-limit first-limit full?)
+       (return
+        d width-limit first-limit full?
+        (match d
+          [(:text s)
+           (define len (string-length s))
+           (cond
+             [full?
+              (if (positive? len)
+                  (cons '() '())
+                  (cons '() (list (measure 0 0 0 (λ (indent-s indent-l xs) xs)))))]
+             [else (cons (list (measure (max 0 (- len (max 0 first-limit)))
+                                        len
+                                        0
+                                        (λ (indent-s indent-l xs) (cons s xs))))
+                         '())])]
+          [(:full d)
+           (match-define (cons as bs) (render d width-limit first-limit full?))
+           (cons '() (compute-frontier (append as bs)))]
+          [(:flush d)
+           (match-define (cons as bs) (render d width-limit first-limit full?))
+           (cons
+            (compute-frontier
+             (for/list ([m (in-sequences (in-list as) (in-list bs))])
+               (match-define (measure badness _ height r) m)
+               (measure
+                badness
+                0
+                (add1 height)
+                (λ (indent-s indent-l xs) (r indent-s indent-l (list* "\n" (make-string indent-s #\space) xs))))))
+            '())]
+
+          [(:align d)
+           (match-define (cons d/no-req d/req)
+             (render d (max 0 first-limit) (max 0 first-limit) full?))
+
+           ;; proceed :: listof measure? -> listof measure?
+           (define (proceed ms)
+             (for/list ([m (in-list ms)])
+               (match-define (measure badness last-width height r) m)
+               (measure (+ badness (* height (max 0 (- first-limit))))
+                        (cond
+                          [(zero? height) last-width]
+                          [else (+ last-width width-limit (- first-limit))])
+                        height
+                        (λ (indent-s indent-l xs) (r indent-l indent-l xs)))))
+
+           (cons (proceed d/no-req) (proceed d/req))]
+
+          [(:concat a b)
+           (match-define (cons a/no-req a/req) (render a width-limit first-limit full?))
+
+           ;; we don't need to care about full? anymore
+           ;; 1. if a is more than one line, then the effect of full is already discarded
+           ;; 2. if a is one line empty, then a/no-req is empty and a/req is not
+           ;; 3. if a is one line non empty, then both a/no-req and a/req are empty.
+           ;; therefore, we need to care only whether we are using a/no-req or a/req
+
+           ;; get-zs :: listof measure? boolean? -> (listof (pairof (listof measure?) (listof measure?)))
+           (define (get-zs as full?)
+             (for/list ([m-a (in-list as)])
+               (match-define (measure badness-a last-width-a height-a r-a) m-a)
+               (define remaining-first-width
+                 (cond
+                   [(zero? height-a) (- first-limit last-width-a)]
+                   [else (- width-limit last-width-a)]))
+
+               (define (proceed bs)
+                 (for/list ([m-b (in-list bs)])
+                   (match-define (measure badness-b last-width-b height-b r-b) m-b)
+                   (measure (+ badness-a badness-b)
+                            (cond
+                              [(zero? height-b) (+ last-width-a last-width-b)]
+                              [else last-width-b])
+                            (+ height-a height-b)
+                            (λ (indent-s indent-l xs)
+                              (r-a indent-s indent-s (r-b indent-s (+ indent-l last-width-a) xs))))))
+
+               (match-define (cons b/no-req b/req)
+                 (render b width-limit remaining-first-width full?))
+               (cons (proceed b/no-req) (proceed b/req))))
+
+           (define zs/no-req (get-zs a/no-req #f))
+           (define zs/req (get-zs a/req #t))
+
+           (cons
+            (compute-frontier (append (append* (map car zs/no-req)) (append* (map car zs/req))))
+            (compute-frontier (append (append* (map cdr zs/no-req)) (append* (map cdr zs/req)))))]
+
+          [(:alternatives a b)
+           (match-define (cons a/no-req a/req) (render a width-limit first-limit full?))
+           (match-define (cons b/no-req b/req) (render b width-limit first-limit full?))
+           (cons (compute-frontier (append a/no-req b/no-req))
+                 (compute-frontier (append a/req b/req)))]
+          [(:annotate d _) (render d width-limit first-limit full?)]
+          [(:select d p)
+           (match-define (cons as bs) (render d width-limit first-limit full?))
+           (cons (filter p as) (filter p bs))]
+          [(:worsen d n)
+           (match-define (cons as bs) (render d width-limit first-limit full?))
+           (cons (for/list ([a (in-list as)])
+                   (struct-copy measure a [height (+ n (measure-height a))]))
+                 (for/list ([b (in-list bs)])
+                   (struct-copy measure b [height (+ n (measure-height b))])))]
+          [(:fail) (cons '() '())])))))
+  (match-define (cons as bs) (render d max-width max-first #f))
   (match (compute-frontier (append as bs))
     ['() (raise-arguments-error 'render "the document fails to render")]
     [xs (first (mins-by (mins-by xs #:key measure-badness) #:key measure-height))]))
 
 (define (render d width indent)
-  (string-append* ((measure-r (find-optimal-layout d width)) indent '())))
+  (match-define (measure badness last-width height renderer)
+    (find-optimal-layout d width (- width indent)))
+  (define out (string-append* (renderer indent indent '())))
+  (cond-dbg
+   [#:dbg
+    (define expected-badness (+ badness (max 0 (- indent width))))
+    (define out* (string-append (make-string indent #\space) out))
+    (define actual-badness
+     (for/sum ([line (string-split out* "\n")])
+       (max 0 (- (string-length line) width))))
+    (unless (= expected-badness actual-badness)
+      (printf "expected badness: ~a\n" expected-badness)
+      (printf "actual badness: ~a\n" actual-badness)
+      (printf "out:\n~a\n" out*)
+      (error 'unexpected-badness))]
+   [#:prod (void)])
+  out)
 
 ;; perform partial evaluation on the "constructor"s
 
@@ -162,11 +235,25 @@
              [(:full d) (flush d)]
              [_ (make-flush d)])]))
 
+(define (align d)
+  (cond-dbg
+   [#:dbg (make-align d)]
+   [#:prod (match d
+             [(:align _) d]
+             [(:text _) d]
+             [(:fail) fail]
+             [_ (make-align d)])]))
+
 (define (concat a b)
   (cond-dbg
    [#:dbg (make-concat a b)]
    [#:prod (match* (a b)
-             [((:full _) _) fail]
+             [((:full _) (:text s))
+              (if (non-empty-string? s)
+                  fail
+                  a)]
+             [(a (:concat b c))
+              (concat (concat a b) c)]
              [(a (:full b)) (full (concat a b))]
              [((:fail) _) fail]
              [(_ (:fail)) fail]

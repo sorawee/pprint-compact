@@ -6,6 +6,8 @@
          rparen
 
          alt
+         j-concat
+         j-append
          h-concat
          h-append
          hs-concat
@@ -40,8 +42,17 @@
     [(cons x xs) (for/fold ([current x]) ([x (in-list xs)])
                    (f current x))]))
 
-(define (h-concat xs)
+(define (j-concat xs)
   (fold-doc concat xs))
+
+(define (j-append . xs)
+  (j-concat xs))
+
+(define (h-append/bin a b)
+  (j-append a (align b)))
+
+(define (h-concat xs)
+  (fold-doc h-append/bin xs))
 
 (define (h-append . xs)
   (h-concat xs))
@@ -60,7 +71,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (v-append/bin x y)
-  (h-append (flush x) y))
+  (j-append (flush x) y))
 
 (define (v-concat xs)
   (fold-doc v-append/bin xs))

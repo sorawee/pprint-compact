@@ -9,7 +9,7 @@
          current-page-indent
          (all-from-out "addons.rkt")
          (except-out (all-from-out "core.rkt")
-                     ; we have h-append already
+                     ; we have j-append already
                      concat
                      ; we have alt already
                      alternatives
@@ -30,118 +30,7 @@
                        #:indent [indent (current-page-indent)])
   (render d width indent))
 
-(module+ test
-  (require racket/match
-           racket/string
-           rackunit)
 
-  (define (get-dim s)
-    (define ss (string-split s "\n"))
-    (cons (length ss) (apply max (map string-length ss))))
 
-  (define (pretty d)
-    (match d
-      [(list) (text "()")]
-      [(list f args ...)
-       (define fp (pretty f))
-       (define argsp (map pretty args))
-       (alt (h-append lparen
-                      (v-concat (cons fp argsp))
-                      rparen)
-            (flat
-             (h-append lparen
-                       (hs-concat (cons fp argsp))
-                       rparen))
-            (h-append lparen
-                      fp
-                      space
-                      (v-concat argsp)
-                      rparen))]
-      [_ (text d)]))
-
-  (define (pretty* d)
-    (match d
-      [(list) (text "()")]
-      [(list f args ...)
-       (define fp (pretty* f))
-       (define argsp (map pretty* args))
-       (alt (h-append lparen
-                      (v-concat (cons fp argsp))
-                      rparen)
-            (h-append lparen
-                      (hs-concat (cons fp argsp))
-                      rparen)
-            (h-append lparen
-                      fp
-                      space
-                      (v-concat argsp)
-                      rparen))]
-      [_ (text d)]))
-
-  (check-equal?
-   (pretty-format (pretty '("+" ("foo" "1" "2") ("bar" "2" "3") ("baz" "3" "4")))
-                  #:width 31)
-   #<<EOF
-(+ (foo 1 2)
-   (bar 2 3)
-   (baz 3 4))
-EOF
-   )
-
-  (check-equal?
-   (get-dim
-    (pretty-format (pretty* '("+" ("foo" "1" "2") ("bar" "2" "3") ("baz" "3" "4")))
-                   #:width 31))
-   (get-dim #<<EOF
-(+ (foo 1
-        2) (bar 2 3) (baz 3 4))
-EOF
-            ))
-
-  (check-equal?
-   (pretty-format (pretty '("+" "123" "456" "789")) #:width 15)
-   "(+ 123 456 789)")
-
-  (check-equal?
-   (pretty-format (pretty '("+" "123" "456" "789")) #:width 14)
-   #<<EOF
-(+ 123
-   456
-   789)
-EOF
-   )
-
-  (check-equal?
-   (pretty-format (pretty '("+" "123" "456" "789")) #:width 5)
-   #<<EOF
-(+
- 123
- 456
- 789)
-EOF
-   )
-
-  (define abcd '("a" "b" "c" "d"))
-  (define abcd4 (list abcd abcd abcd abcd))
-
-  (define p (open-output-string))
-  (define prefix "hello: ")
-  (display prefix p)
-  (pretty-print (pretty (list (list "abcde" abcd4)
-                              (list "abcdefgh" abcd4)))
-                #:out p
-                #:width 20
-                #:indent (string-length prefix))
-  (check-equal? (get-output-string p)
-                #<<EOF
-hello: ((abcde ((a b c d)
-                (a b c d)
-                (a b c d)
-                (a b c d)))
-        (abcdefgh
-         ((a b c d)
-          (a b c d)
-          (a b c d)
-          (a b c d))))
-EOF
-                ))
+#;(pretty-print (j-append (text "x") (h-append (flush (text "abc")) (text "def")))
+              #:width 3)

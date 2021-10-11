@@ -33,6 +33,11 @@
      (cond
        [(eq? d* d) doc]
        [else (worsen d* n)])]
+    [(:align d)
+     (define d* (f d))
+     (cond
+       [(eq? d* d) doc]
+       [else (align d*)])]
     [(:concat a b)
      (define a* (f a))
      (define b* (f b))
