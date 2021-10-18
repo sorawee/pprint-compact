@@ -33,3 +33,15 @@ function(){
 }
 EOF
               )
+
+(check-equal?
+ (pretty-format (j-append (text "a")
+                          (j-append (text "b")
+                                    (j-append (align (v-append (text "x") (text "y")))
+                                              (align (v-append (text "p") (text "q")))))))
+ #<<EOF
+abx
+  yp
+   q
+EOF
+ )

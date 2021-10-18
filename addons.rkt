@@ -152,13 +152,15 @@
                     (match row
                       [(list a b)
                        (h-append a
-                                 (context
-                                  (memoize*
-                                   (λ (width-limit* first-limit* full?*)
-                                     (define width (- first-limit first-limit*))
-                                     (cond
-                                       [(< offset width) (cost empty-doc (add1 first-limit))]
-                                       [else (text (make-string (- offset width) #\space))]))))
+                                 (alt
+                                  (context
+                                   (memoize*
+                                    (λ (width-limit* first-limit* full?*)
+                                      (define width (- first-limit first-limit*))
+                                      (cond
+                                        [(< offset width) fail]
+                                        [else (text (make-string (- offset width) #\space))]))))
+                                  (cost empty-doc (add1 first-limit)))
                                  sep
                                  b)])))
                  offset))))))))

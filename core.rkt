@@ -112,7 +112,7 @@
                                         len
                                         0
                                         0
-                                        (λ (indent-s indent-l xs) (cons s xs))))
+                                        (λ (current-column current-align-pos xs) (cons s xs))))
                          '())])]
           [(:full d)
            (match-define (cons as bs) (render d width-limit first-limit full?))
@@ -128,7 +128,10 @@
                 0
                 (add1 height)
                 cost
-                (λ (indent-s indent-l xs) (r indent-s indent-l (list* "\n" (make-string indent-s #\space) xs))))))
+                (λ (current-column current-align-pos xs)
+                  (r current-column
+                     current-align-pos
+                     (list* "\n" (make-string current-align-pos #\space) xs))))))
             '())]
 
           [(:align d)
@@ -145,7 +148,8 @@
                           [else (+ last-width width-limit (- first-limit))])
                         height
                         cost
-                        (λ (indent-s indent-l xs) (r indent-l indent-l xs)))))
+                        (λ (current-column current-align-pos xs)
+                          (r current-column current-column xs)))))
 
            (cons (proceed d/no-req) (proceed d/req))]
 
@@ -176,8 +180,15 @@
                               [else last-width-b])
                             (+ height-a height-b)
                             (+ cost-a cost-b)
-                            (λ (indent-s indent-l xs)
-                              (r-a indent-s indent-s (r-b indent-s (+ indent-l last-width-a) xs))))))
+                            (λ (current-column current-align-pos xs)
+                              (r-a current-column
+                                   current-align-pos
+                                   (r-b (+ last-width-a
+                                           (if (zero? height-a)
+                                               current-column
+                                               current-align-pos))
+                                        current-align-pos
+                                        xs))))))
 
                (match-define (cons b/no-req b/req)
                  (render b width-limit remaining-first-width full?))
