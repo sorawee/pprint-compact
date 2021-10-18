@@ -9,7 +9,11 @@
     (and (>= (measure-last-width a) (measure-last-width b))
          (cond
            [(= (measure-badness a) (measure-badness b))
-            (>= (measure-height a) (measure-height b))]
+            (cond
+              [(= (measure-height a) (measure-height b))
+               (>= (measure-cost a) (measure-cost b))]
+              [else
+               (> (measure-height a) (measure-height b))])]
            [else (> (measure-badness a) (measure-badness b))])))
 
   (define (naive xs)
@@ -23,7 +27,7 @@
 
   (define (gen)
     (for/list ([i (random 100)])
-      (measure (random 100) (random 100) (random 100) #f)))
+      (measure (random 100) (random 100) (random 100) (random 100) #f)))
 
   (for ([i (in-range 10000)])
     (define orig (gen))
