@@ -33,7 +33,8 @@
   (define xs (compute-frontier orig))
   (define ys (naive orig))
 
-  (printf "checking ~a\n" i)
+  (when (zero? (modulo i 1000))
+    (printf "checking ~a\n" i))
   (unless (and (equal? (length xs) (length ys))
                (equal? (list->set xs) (list->set ys)))
     (printf "orig: ~a\n" orig)
