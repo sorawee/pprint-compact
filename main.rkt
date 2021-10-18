@@ -29,8 +29,3 @@
                        #:width [width (current-page-width)]
                        #:indent [indent (current-page-indent)])
   (render d width indent))
-
-
-
-#;(pretty-print (j-append (text "x") (h-append (flush (text "abc")) (text "def")))
-              #:width 3)

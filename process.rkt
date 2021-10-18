@@ -28,11 +28,11 @@
      (cond
        [(eq? d* d) doc]
        [else (select d* p)])]
-    [(:worsen d n)
+    [(:cost d n)
      (define d* (f d))
      (cond
        [(eq? d* d) doc]
-       [else (worsen d* n)])]
+       [else (cost d* n)])]
     [(:align d)
      (define d* (f d))
      (cond

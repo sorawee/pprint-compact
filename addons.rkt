@@ -15,6 +15,10 @@
          v-concat
          v-append
          sep
+         sep/flat
+         flow
+         flow*
+         two-cols
 
          flush-if
          indent-next
@@ -42,11 +46,15 @@
     [(cons x xs) (for/fold ([current x]) ([x (in-list xs)])
                    (f current x))]))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (define (j-concat xs)
   (fold-doc concat xs))
 
 (define (j-append . xs)
   (j-concat xs))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (h-append/bin a b)
   (j-append a (align b)))
@@ -85,6 +93,75 @@
   (match xs
     ['() empty-doc]
     [xs (alt (hs-concat xs) (v-concat xs))]))
+
+(define (sep/flat xs)
+  (match xs
+    ['() empty-doc]
+    [xs (alt (flat (hs-concat xs)) (v-concat xs))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (flow xs
+              #:allow-first-newline? [allow-first-newline? #t]
+              #:sep [sep space])
+  (match xs
+    ['() empty-doc]
+    [_
+     (define flowed
+       (let loop ([xs xs])
+         (match xs
+           [(list x) x]
+           [(cons x xs)
+            (define flowed (loop xs))
+            (alt (v-append x flowed)
+                 (j-append x sep flowed))])))
+     (cond
+       [allow-first-newline?
+        (alt flowed (v-append empty-doc flowed))]
+       [else flowed])]))
+
+(define (flow* xs
+               #:allow-first-newline? [allow-first-newline? #t]
+               #:sep [sep space])
+  (match xs
+    ['() empty-doc]
+    [(cons result xs)
+     (define flowed
+       (let loop ([xs xs] [result result])
+         (match xs
+           ['() result]
+           [(cons x xs)
+            (loop xs
+                  (alt (v-append result x)
+                       (h-append result sep x)))])))
+     (cond
+       [allow-first-newline?
+        (alt flowed (v-append empty-doc flowed))]
+       [else flowed])]))
+
+(define (two-cols rows #:sep [sep space])
+  (align
+   (context
+    (memoize*
+     (λ (width-limit first-limit full?)
+       (apply alt
+              (for/list ([offset (in-inclusive-range 0 first-limit)])
+                (cost
+                 (v-concat
+                  (for/list ([row (in-list rows)])
+                    (match row
+                      [(list a b)
+                       (h-append a
+                                 (context
+                                  (memoize*
+                                   (λ (width-limit* first-limit* full?*)
+                                     (define width (- first-limit first-limit*))
+                                     (cond
+                                       [(< offset width) (cost empty-doc (add1 first-limit))]
+                                       [else (text (make-string (- offset width) #\space))]))))
+                                 sep
+                                 b)])))
+                 offset))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
