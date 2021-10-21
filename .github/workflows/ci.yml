@@ -21,4 +21,4 @@ jobs:
       - name: Compiling pprint-compact and building its docs
         run: raco setup --check-pkg-deps --unused-pkg-deps pprint-compact
       - name: Testing pprint-compact
-        run: raco test -x -p pprint-compact
+        run: raco test -p pprint-compact
