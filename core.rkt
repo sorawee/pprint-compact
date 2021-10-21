@@ -16,7 +16,7 @@
          :fail
          :annotate
          :select
-         :worsen
+         :cost
 
          ;; primitive constructors
          text
@@ -26,7 +26,7 @@
          full
          annotate
          select
-         worsen
+         cost
 
          fail)
 
@@ -69,7 +69,7 @@
 (struct :fail doc () #:transparent #:constructor-name make-fail)
 (struct :annotate doc (d a) #:transparent #:constructor-name make-annotate)
 (struct :select doc (d p) #:transparent #:constructor-name make-select)
-(struct :worsen doc (d n) #:transparent #:constructor-name make-worsen)
+(struct :cost doc (d n) #:transparent #:constructor-name make-cost)
 
 (define (mins-by xs #:key [key values])
   (for/fold ([best (list (first xs))]) ([x (in-list (rest xs))])
@@ -85,7 +85,7 @@
        (match d
          [(:text s)
           (define len (string-length s))
-          (cons (list (measure (max 0 (- len width-limit)) len 0 (λ (indent xs) (cons s xs))))
+          (cons (list (measure (max 0 (- len width-limit)) len 0 0 (λ (indent xs) (cons s xs))))
                 '())]
          [(:full d)
           (match-define (cons as bs) (render d width-limit))
@@ -95,11 +95,12 @@
           (cons
            (compute-frontier
             (for/list ([m (in-sequences (in-list as) (in-list bs))])
-              (match-define (measure badness _ height r) m)
+              (match-define (measure badness _ height cost r) m)
               (measure
                badness
                0
                (add1 height)
+               cost
                (λ (indent xs)
                  (r indent (list* "\n" (make-string indent #\space) xs))))))
            '())]
@@ -107,17 +108,18 @@
           (match-define (cons a/no-req _) (render a width-limit))
           (define zs
             (for/list ([m-a (in-list a/no-req)])
-              (match-define (measure badness-a last-width-a height-a r-a) m-a)
+              (match-define (measure badness-a last-width-a height-a cost-a r-a) m-a)
               (define penalty-multiplier (max 0 (- last-width-a width-limit)))
               (define remaining-width (max 0 (- width-limit last-width-a)))
               ;; make +inf.0 reference canonical
               (define remaining-width* (if (= +inf.0 remaining-width) +inf.0 remaining-width))
               (define (proceed bs)
                 (for/list ([m-b (in-list bs)])
-                  (match-define (measure badness-b last-width-b height-b r-b) m-b)
+                  (match-define (measure badness-b last-width-b height-b cost-b r-b) m-b)
                   (measure (+ badness-a badness-b (* height-b penalty-multiplier))
                            (+ last-width-a last-width-b)
                            (+ height-a height-b)
+                           (+ cost-a cost-b)
                            (λ (indent xs)
                              (r-a indent (r-b (+ indent last-width-a) xs))))))
               (match-define (cons b/no-req b/req) (render b remaining-width*))
@@ -135,17 +137,19 @@
          [(:select d p)
           (match-define (cons as bs) (render d width-limit))
           (cons (filter p as) (filter p bs))]
-         [(:worsen d n)
+         [(:cost d n)
           (match-define (cons as bs) (render d width-limit))
           (cons (for/list ([a (in-list as)])
-                  (struct-copy measure a [height (+ n (measure-height a))]))
+                  (struct-copy measure a [cost (+ n (measure-cost a))]))
                 (for/list ([b (in-list bs)])
-                  (struct-copy measure b [height (+ n (measure-height b))])))]
+                  (struct-copy measure b [cost (+ n (measure-cost b))])))]
          [(:fail) (cons '() '())]))))
   (match-define (cons as bs) (render d max-width))
   (match (compute-frontier (append as bs))
     ['() (raise-arguments-error 'render "the document fails to render")]
-    [xs (first (mins-by (mins-by xs #:key measure-badness) #:key measure-height))]))
+    [xs (first (mins-by (mins-by (mins-by xs #:key measure-badness)
+                                 #:key measure-height)
+                        #:key measure-cost))]))
 
 (define (render d width indent)
   (string-append* ((measure-r (find-optimal-layout d width)) indent '())))
@@ -212,9 +216,9 @@
              [(:fail) fail]
              [_ (make-full d)])]))
 
-(define (worsen d n)
+(define (cost d n)
   (cond-dbg
-   [#:dbg (make-worsen d n)]
+   [#:dbg (make-cost d n)]
    [#:prod (match d
              [(:fail) fail]
-             [_ (make-worsen d n)])]))
+             [_ (make-cost d n)])]))
