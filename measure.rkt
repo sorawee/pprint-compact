@@ -2,4 +2,4 @@
 
 (provide (struct-out measure))
 
-(struct measure (badness last-width height cost r) #:transparent)
+(struct measure (badness width last-width height cost r) #:transparent)

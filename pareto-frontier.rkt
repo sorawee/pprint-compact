@@ -12,7 +12,10 @@
        [(= (measure-badness a) (measure-badness b))
         (cond
           [(= (measure-height a) (measure-height b))
-           (< (measure-cost a) (measure-cost b))]
+           (cond
+             [(= (measure-cost a) (measure-cost b))
+              (< (measure-width a) (measure-width b))]
+             [else (< (measure-cost a) (measure-cost b))])]
           [else (< (measure-height a) (measure-height b))])]
        [else (< (measure-badness a) (measure-badness b))])]
     [else (< (measure-last-width a) (measure-last-width b))]))
@@ -22,14 +25,17 @@
     [(= (measure-badness a) (measure-badness b))
      (cond
        [(= (measure-height a) (measure-height b))
-        (< (measure-cost a) (measure-cost b))]
+        (cond
+          [(= (measure-cost a) (measure-cost b))
+           (< (measure-width a) (measure-width b))]
+          [else (< (measure-cost a) (measure-cost b))])]
        [else (< (measure-height a) (measure-height b))])]
     [else (< (measure-badness a) (measure-badness b))]))
 
 (define (compute-frontier candidates)
   (match candidates
     ['() '()]
-    [(list x) candidates]
+    [(list _) candidates]
     [_
      (define xs (sort candidates measure<))
      (let loop ([xs (rest xs)] [frontier (list (first xs))])
