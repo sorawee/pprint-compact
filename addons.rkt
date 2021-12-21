@@ -167,19 +167,21 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define flat-caches (make-weak-hasheq))
+
 (define (flat d)
   (define loop
     (memoize
      (λ (d)
        (match d
          [(:flush _) fail]
-         ;; we can actually prune the annotation since the whole thing is tagged
-         ;; as flat anyway, but leaving things in-place to preserve reference
-         ;; is more worthwhile
-         #;[(:annotate _ 'flat) d]
-         [_ (doc-process loop d)]))))
-  #;(annotate (loop d) 'flat)
-  (loop d))
+         [_
+          (cond
+            [(hash-has-key? flat-caches d) d]
+            [else (doc-process loop d)])]))))
+  (define result (loop d))
+  (hash-set! flat-caches result #t)
+  result)
 
 (define (flat? m)
   (zero? (measure-height m)))
