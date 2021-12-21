@@ -267,18 +267,15 @@
   (cond-dbg
    [#:dbg (make-concat a b)]
    [#:prod (match* (a b)
-             [((:full _) (:text s))
-              (if (non-empty-string? s)
-                  fail
-                  a)]
-             [(a (:concat b c))
-              (concat (concat a b) c)]
-             [(a (:full b)) (full (concat a b))]
-             [((:fail) _) fail]
-             [(_ (:fail)) fail]
              [((:text "") d) d]
              [(d (:text "")) d]
              [((:text sa) (:text sb)) (text (string-append sa sb))]
+             [((:full _) (:text _)) fail] ; the text is non-empty
+             #;[(a (:concat b c))
+              (concat (concat a b) c)]
+             #;[(a (:full b)) (full (concat a b))]
+             [((:fail) _) fail]
+             [(_ (:fail)) fail]
              [(_ _) (make-concat a b)])]))
 
 (define (alternatives a b)
@@ -297,10 +294,10 @@
    [#:dbg (make-annotate d a)]
    [#:prod (match d
              [(:fail) fail]
-             [(:annotate d a*)
+             [(:annotate _ a*)
               (cond
                 [(equal? a a*) d]
-                [(make-annotate d a)])]
+                [else (make-annotate d a)])]
              [_ (make-annotate d a)])]))
 
 (define (select d p)
