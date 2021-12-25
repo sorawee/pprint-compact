@@ -78,74 +78,81 @@
       [(< (key (first best)) (key x)) best]
       [else (list x)])))
 
+(define (return d width-limit out)
+  #;(cond-dbg
+     [#:dbg
+      (displayln "--------------------")
+      (printf "d: ~e\n" d)
+      (printf "width-limit: ~a\n" width-limit)
+      (printf "out: ~a\n" out)]
+     [#:prod (void)])
+  out)
+
 (define (find-optimal-layout d max-width)
   (define render
     (memoize2
      (λ (d width-limit)
-       (match d
-         [(:text s)
-          (define len (string-length s))
-          (cons (list (measure (max 0 (- len width-limit)) len len 0 0 (λ (indent xs) (cons s xs))))
-                '())]
-         [(:full d)
-          (match-define (cons as bs) (render d width-limit))
-          (cons '() (compute-frontier (append as bs)))]
-         [(:flush d)
-          (match-define (cons as bs) (render d width-limit))
-          (cons
-           (compute-frontier
-            (for/list ([m (in-sequences (in-list as) (in-list bs))])
-              (match-define (measure badness width _ height cost r) m)
-              (measure
-               badness
-               width
-               0
-               (add1 height)
-               cost
-               (λ (indent xs)
-                 (r indent (list* "\n" (make-string indent #\space) xs))))))
-           '())]
-         [(:concat a b)
-          (match-define (cons a/no-req _) (render a width-limit))
-          (define zs
-            (for/list ([m-a (in-list a/no-req)])
-              (match-define (measure badness-a width-a last-width-a height-a cost-a r-a) m-a)
-              (define penalty-multiplier (max 0 (- last-width-a width-limit)))
-              (define remaining-width (max 0 (- width-limit last-width-a)))
-              ;; make +inf.0 reference canonical
-              (define remaining-width* (if (= +inf.0 remaining-width) +inf.0 remaining-width))
-              (define (proceed bs)
-                (for/list ([m-b (in-list bs)])
-                  (match-define (measure badness-b width-b last-width-b height-b cost-b r-b) m-b)
-                  (measure (+ badness-a badness-b (* height-b penalty-multiplier))
-                           (max width-a (+ width-b last-width-a))
-                           (+ last-width-a last-width-b)
-                           (+ height-a height-b)
-                           (+ cost-a cost-b)
-                           (λ (indent xs)
-                             (r-a indent (r-b (+ indent last-width-a) xs))))))
-              (match-define (cons b/no-req b/req) (render b remaining-width*))
-              (cons (proceed b/no-req) (proceed b/req))))
-          (cons
-           (compute-frontier (append* (map car zs)))
-           (compute-frontier (append* (map cdr zs))))]
+       (return
+        d width-limit
+        (match d
+          [(:text s)
+           (define len (string-length s))
+           (cons (list (measure (max 0 (- len width-limit)) len len 0 0 (λ (indent xs) (cons s xs))))
+                 '())]
+          [(:full d)
+           (match-define (cons as bs) (render d width-limit))
+           (cons '() (compute-frontier (append as bs)))]
+          [(:flush d)
+           (match-define (cons as bs) (render d width-limit))
+           (cons
+            (compute-frontier
+             (for/list ([m (in-sequences (in-list as) (in-list bs))])
+               (match-define (measure badness width _ height cost r) m)
+               (measure
+                (- badness (min 0 width-limit))
+                width
+                0
+                (add1 height)
+                cost
+                (λ (indent xs)
+                  (r indent (list* "\n" (make-string indent #\space) xs))))))
+            '())]
+          [(:concat a b)
+           (match-define (cons a/no-req _) (render a width-limit))
+           (define zs
+             (for/list ([m-a (in-list a/no-req)])
+               (match-define (measure badness-a width-a last-width-a height-a cost-a r-a) m-a)
+               (define (proceed bs)
+                 (for/list ([m-b (in-list bs)])
+                   (match-define (measure badness-b width-b last-width-b height-b cost-b r-b) m-b)
+                   (measure (+ badness-a badness-b (min 0 (- width-limit last-width-a)))
+                            (max width-a (+ width-b last-width-a))
+                            (+ last-width-a last-width-b)
+                            (+ height-a height-b)
+                            (+ cost-a cost-b)
+                            (λ (indent xs) (r-a indent (r-b (+ indent last-width-a) xs))))))
+               (match-define (cons b/no-req b/req) (render b (- width-limit last-width-a)))
+               (cons (proceed b/no-req) (proceed b/req))))
+           (cons
+            (compute-frontier (append* (map car zs)))
+            (compute-frontier (append* (map cdr zs))))]
 
-         [(:alternatives a b)
-          (match-define (cons a/no-req a/req) (render a width-limit))
-          (match-define (cons b/no-req b/req) (render b width-limit))
-          (cons (compute-frontier (append a/no-req b/no-req))
-                (compute-frontier (append a/req b/req)))]
-         [(:annotate d _) (render d width-limit)]
-         [(:select d p)
-          (match-define (cons as bs) (render d width-limit))
-          (cons (filter p as) (filter p bs))]
-         [(:cost d n)
-          (match-define (cons as bs) (render d width-limit))
-          (cons (for/list ([a (in-list as)])
-                  (struct-copy measure a [cost (+ n (measure-cost a))]))
-                (for/list ([b (in-list bs)])
-                  (struct-copy measure b [cost (+ n (measure-cost b))])))]
-         [(:fail) (cons '() '())]))))
+          [(:alternatives a b)
+           (match-define (cons a/no-req a/req) (render a width-limit))
+           (match-define (cons b/no-req b/req) (render b width-limit))
+           (cons (compute-frontier (append a/no-req b/no-req))
+                 (compute-frontier (append a/req b/req)))]
+          [(:annotate d _) (render d width-limit)]
+          [(:select d p)
+           (match-define (cons as bs) (render d width-limit))
+           (cons (filter p as) (filter p bs))]
+          [(:cost d n)
+           (match-define (cons as bs) (render d width-limit))
+           (cons (for/list ([a (in-list as)])
+                   (struct-copy measure a [cost (+ n (measure-cost a))]))
+                 (for/list ([b (in-list bs)])
+                   (struct-copy measure b [cost (+ n (measure-cost b))])))]
+          [(:fail) (cons '() '())])))))
   (match-define (cons as bs) (render d max-width))
   (match (compute-frontier (append as bs))
     ['() (raise-arguments-error 'render "the document fails to render")]
