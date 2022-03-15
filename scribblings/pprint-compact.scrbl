@@ -15,7 +15,7 @@
 @(define Ber17
    (make-bib #:title "A Pretty But Not Greedy Printer"
              #:url "https://jyp.github.io/pdf/Prettiest.pdf"
-             #:author "Jean-Philippe Bernady"
+             #:author "Jean-Philippe Bernardy"
              #:date "2017"))
 
 @(define Pod14
